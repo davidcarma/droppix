@@ -32,6 +32,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 add_executable(droppix_tests
   tests/test_smoke.cpp
+  tests/test_edid.cpp
 )
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main)
 include(GoogleTest)
