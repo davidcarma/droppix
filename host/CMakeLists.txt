@@ -20,6 +20,7 @@ add_library(droppix_core
   src/png_writer.cpp
   src/protocol.cpp
   src/software_encoder.cpp
+  src/test_pattern_source.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -48,6 +49,7 @@ add_executable(droppix_tests
   tests/test_png_writer.cpp
   tests/test_protocol.cpp
   tests/test_software_encoder.cpp
+  tests/test_test_pattern_source.cpp
 )
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main)
 include(GoogleTest)
