@@ -12,6 +12,7 @@ message(STATUS "Using libevdi: ${EVDI_LIB}")
 # Core library: sources are added by later tasks.
 add_library(droppix_core
   src/edid.cpp
+  src/virtual_display.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -19,6 +20,9 @@ target_include_directories(droppix_core PUBLIC
   third_party/stb
 )
 target_link_libraries(droppix_core PUBLIC ${EVDI_LIB})
+
+add_executable(droppix_spike src/spike_main.cpp)
+target_link_libraries(droppix_spike PRIVATE droppix_core)
 
 # --- Tests (GoogleTest via FetchContent) ---
 include(FetchContent)
