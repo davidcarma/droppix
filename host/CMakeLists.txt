@@ -37,6 +37,7 @@ enable_testing()
 add_executable(droppix_tests
   tests/test_smoke.cpp
   tests/test_edid.cpp
+  tests/test_virtual_display.cpp
 )
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main)
 include(GoogleTest)

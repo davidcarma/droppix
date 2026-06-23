@@ -35,6 +35,11 @@ bool VirtualDisplay::open() {
 }
 
 void VirtualDisplay::connect(const std::vector<unsigned char>& edid) {
+  if (!handle_) {
+    std::fprintf(stderr, "connect() called without a successful open()\n");
+    return;
+  }
+  if (connected_) return;  // already connected; ignore duplicate connect
   // pixel_area_limit / pixel_per_second_limit = 0 means "no limit".
   evdi_connect2(handle_, edid.data(),
                 static_cast<unsigned>(edid.size()), 0, 0);
