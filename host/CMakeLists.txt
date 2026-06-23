@@ -11,6 +11,7 @@ message(STATUS "Using libevdi: ${EVDI_LIB}")
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale)
+find_package(Threads REQUIRED)
 
 # Core library: sources are added by later tasks.
 add_library(droppix_core
@@ -21,6 +22,7 @@ add_library(droppix_core
   src/protocol.cpp
   src/software_encoder.cpp
   src/test_pattern_source.cpp
+  src/transport_server.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -50,7 +52,8 @@ add_executable(droppix_tests
   tests/test_protocol.cpp
   tests/test_software_encoder.cpp
   tests/test_test_pattern_source.cpp
+  tests/test_transport_server.cpp
 )
-target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main)
+target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main Threads::Threads)
 include(GoogleTest)
 gtest_discover_tests(droppix_tests)
