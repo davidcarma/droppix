@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <set>
 #include "software_encoder.h"
 #include "capturer.h"
 
@@ -37,4 +38,25 @@ TEST(SoftwareEncoder, OpensAndEmitsKeyframeAnnexB) {
   ASSERT_FALSE(packets.empty());
   EXPECT_TRUE(packets[0].keyframe);             // first output is an IDR
   EXPECT_TRUE(starts_with_annexb(packets[0].data));
+}
+
+TEST(SoftwareEncoder, PacketsCarryCallerMicrosecondPts) {
+  SoftwareEncoder enc;
+  ASSERT_TRUE(enc.open(320, 240, 30, 1000));
+  std::set<int64_t> submitted;
+  std::vector<EncodedPacket> packets;
+  for (int i = 0; i < 8; ++i) {
+    int64_t pts = 1000000 + int64_t(i) * 33333;  // microsecond-scale, distinct
+    submitted.insert(pts);
+    auto f = make_frame(320, 240, (i * 20) & 0xFF, 0x40, 0x80);
+    auto out = enc.encode(f, pts);
+    packets.insert(packets.end(), out.begin(), out.end());
+  }
+  auto tail = enc.flush();
+  packets.insert(packets.end(), tail.begin(), tail.end());
+  ASSERT_FALSE(packets.empty());
+  for (auto& p : packets) {
+    EXPECT_GE(p.pts_us, 1000000) << "pts looks like a frame index, not microseconds";
+    EXPECT_TRUE(submitted.count(p.pts_us) > 0) << "pts not one of the submitted values";
+  }
 }

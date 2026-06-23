@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+#include <map>
 #include "encoder.h"
 
 struct AVCodecContext;
@@ -24,5 +26,6 @@ class SoftwareEncoder : public Encoder {
   SwsContext* sws_ = nullptr;
   int width_ = 0, height_ = 0, fps_ = 30;
   int64_t frame_index_ = 0;
+  std::map<int64_t, int64_t> pts_map_;  // frame_index (codec pts tick) -> caller pts_us
 };
 }  // namespace droppix

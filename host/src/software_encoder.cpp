@@ -34,12 +34,14 @@ bool SoftwareEncoder::open(int width, int height, int fps, int bitrate_kbps) {
   }
 
   nv12_ = av_frame_alloc();
+  if (!nv12_) return false;
   nv12_->format = AV_PIX_FMT_NV12;
   nv12_->width = width;
   nv12_->height = height;
   if (av_frame_get_buffer(nv12_, 32) < 0) return false;
 
   pkt_ = av_packet_alloc();
+  if (!pkt_) return false;
 
   sws_ = sws_getContext(width, height, AV_PIX_FMT_BGRA,
                         width, height, AV_PIX_FMT_NV12,
@@ -61,7 +63,9 @@ std::vector<EncodedPacket> SoftwareEncoder::drain() {
     if (r < 0) { std::fprintf(stderr, "receive_packet error\n"); break; }
     EncodedPacket ep;
     ep.data.assign(pkt_->data, pkt_->data + pkt_->size);
-    ep.pts_us = pkt_->pts;  // set below in encode() via frame pts
+    auto it = pts_map_.find(pkt_->pts);   // map the codec tick back to caller us
+    if (it != pts_map_.end()) { ep.pts_us = it->second; pts_map_.erase(it); }
+    else { ep.pts_us = 0; }
     ep.keyframe = (pkt_->flags & AV_PKT_FLAG_KEY) != 0;
     out.push_back(std::move(ep));
     av_packet_unref(pkt_);
@@ -75,12 +79,11 @@ std::vector<EncodedPacket> SoftwareEncoder::encode(const Frame& frame, int64_t p
   const uint8_t* src[1] = { frame.bgra.data() };
   int src_stride[1] = { frame.stride };
   sws_scale(sws_, src, src_stride, 0, height_, nv12_->data, nv12_->linesize);
-  nv12_->pts = frame_index_++;  // in time_base (1/fps) units
-
+  int64_t idx = frame_index_++;
+  nv12_->pts = idx;            // codec time_base (1/fps) tick
+  pts_map_[idx] = pts_us;      // remember the caller's microsecond timestamp
   if (avcodec_send_frame(ctx_, nv12_) < 0) return {};
-  auto out = drain();
-  for (auto& p : out) p.pts_us = pts_us;  // tag with caller's wall-clock pts
-  return out;
+  return drain();
 }
 
 std::vector<EncodedPacket> SoftwareEncoder::flush() {
