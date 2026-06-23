@@ -53,3 +53,10 @@ TEST(TransportServer, HandshakeThenVideo) {
   t.join();
   EXPECT_TRUE(client_ok);
 }
+
+TEST(TransportServer, RelistenClosesOldSocketAndSucceeds) {
+  TransportServer s;
+  ASSERT_TRUE(s.listen(0));        // ephemeral
+  ASSERT_TRUE(s.listen(0));        // re-listen must close the old fd, not fail/leak
+  EXPECT_NE(s.port(), 0);
+}

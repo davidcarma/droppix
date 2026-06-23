@@ -10,6 +10,7 @@
 namespace droppix {
 
 bool TransportServer::listen(uint16_t port) {
+  if (listen_fd_ >= 0) { ::close(listen_fd_); listen_fd_ = -1; }  // re-listen safe
   listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
   if (listen_fd_ < 0) return false;
   int yes = 1;
@@ -18,8 +19,12 @@ bool TransportServer::listen(uint16_t port) {
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
   addr.sin_port = htons(port);
-  if (::bind(listen_fd_, (sockaddr*)&addr, sizeof(addr)) != 0) return false;
-  if (::listen(listen_fd_, 1) != 0) return false;
+  if (::bind(listen_fd_, (sockaddr*)&addr, sizeof(addr)) != 0) {
+    ::close(listen_fd_); listen_fd_ = -1; return false;
+  }
+  if (::listen(listen_fd_, 1) != 0) {
+    ::close(listen_fd_); listen_fd_ = -1; return false;
+  }
   socklen_t len = sizeof(addr);
   if (getsockname(listen_fd_, (sockaddr*)&addr, &len) == 0) {
     port_ = ntohs(addr.sin_port);
@@ -34,6 +39,7 @@ bool TransportServer::wait_readable(int fd, int timeout_ms) {
 }
 
 bool TransportServer::accept_client(int timeout_ms) {
+  close_all();  // drop any prior client so its fd can't leak on a new accept
   if (!wait_readable(listen_fd_, timeout_ms)) return false;
   client_fd_ = ::accept(listen_fd_, nullptr, nullptr);
   if (client_fd_ < 0) return false;
