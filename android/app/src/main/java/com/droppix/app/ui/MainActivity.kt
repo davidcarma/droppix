@@ -17,7 +17,7 @@ class MainActivity : Activity() {
 
     @Volatile private var running = false
     private var netThread: Thread? = null
-    private var decoder: VideoDecoder? = null
+    @Volatile private var decoder: VideoDecoder? = null
     private lateinit var surfaceView: DisplaySurfaceView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +62,7 @@ class MainActivity : Activity() {
         super.onPause()
         running = false
         netThread?.join(1500)
+        if (netThread?.isAlive == true) Log.w(TAG, "net thread did not exit within 1.5s")
         netThread = null
         decoder?.release()
         decoder = null
