@@ -45,7 +45,7 @@ class TransportClientTest {
 
         val client = TransportClient()
         val clientThread = thread {
-            client.run("127.0.0.1", port, 1920, 1080, 320, listener) { true }
+            client.run("127.0.0.1", port, 1920, 1080, 320, listener, { true })
         }
 
         assertTrue("did not receive config+video", latch.await(3, TimeUnit.SECONDS))

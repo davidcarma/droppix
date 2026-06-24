@@ -3,17 +3,21 @@ package com.droppix.app.decode
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.droppix.app.stats.StatsSink
 
 // Hardware H.264 decode straight onto a Surface. SPS/PPS arrive in-band, so we
 // configure with only width/height and let the codec sync on the first IDR.
-class VideoDecoder(surface: Surface, width: Int, height: Int) {
+class VideoDecoder(surface: Surface, width: Int, height: Int,
+                   private val stats: StatsSink? = null) {
     private companion object { const val TAG = "droppix" }
 
     private val codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     private val info = MediaCodec.BufferInfo()
     @Volatile private var released = false
+    private val submitNs = HashMap<Long, Long>()  // ptsUs -> submit SystemClock ns
 
     init {
         val fmt = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
@@ -42,6 +46,7 @@ class VideoDecoder(surface: Surface, width: Int, height: Int) {
                     codec.queueInputBuffer(inIndex, 0, 0, ptsUs, 0)
                 } else {
                     buf.put(nal)
+                    if (stats != null) submitNs[ptsUs] = SystemClock.elapsedRealtimeNanos()
                     codec.queueInputBuffer(inIndex, 0, nal.size, ptsUs, 0)
                 }
             } else {
@@ -49,6 +54,13 @@ class VideoDecoder(surface: Surface, width: Int, height: Int) {
             }
             var outIndex = codec.dequeueOutputBuffer(info, 0)
             while (outIndex >= 0) {
+                if (stats != null) {
+                    val t0 = submitNs.remove(info.presentationTimeUs)
+                    if (t0 != null) {
+                        stats.decodeLagMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1_000_000.0
+                    }
+                    if (submitNs.size > 240) submitNs.clear()  // safety bound
+                }
                 codec.releaseOutputBuffer(outIndex, true)  // render to the surface
                 outIndex = codec.dequeueOutputBuffer(info, 0)
             }
@@ -62,5 +74,6 @@ class VideoDecoder(surface: Surface, width: Int, height: Int) {
         released = true
         try { codec.stop() } catch (_: Exception) {}
         codec.release()
+        submitNs.clear()
     }
 }

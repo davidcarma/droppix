@@ -25,6 +25,7 @@ add_library(droppix_core
   src/evdi_frame_source.cpp
   src/transport_server.cpp
   src/stream_daemon.cpp
+  src/stat_accumulator.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -58,6 +59,7 @@ add_executable(droppix_tests
   tests/test_software_encoder.cpp
   tests/test_test_pattern_source.cpp
   tests/test_transport_server.cpp
+  tests/test_stat_accumulator.cpp
 )
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main Threads::Threads)
 include(GoogleTest)
