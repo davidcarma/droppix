@@ -47,6 +47,8 @@ if(Qt6_FOUND)
   add_executable(droppix_gui
     gui/main.cpp
     gui/main_window.cpp
+    gui/stats_parser.cpp
+    gui/args_builder.cpp
   )
   target_include_directories(droppix_gui PRIVATE gui)
   target_link_libraries(droppix_gui PRIVATE Qt6::Widgets)
@@ -75,7 +77,12 @@ add_executable(droppix_tests
   tests/test_transport_server.cpp
   tests/test_stat_accumulator.cpp
   tests/test_stats_json.cpp
+  tests/test_stats_parser.cpp
+  tests/test_args_builder.cpp
+  gui/stats_parser.cpp
+  gui/args_builder.cpp
 )
+target_include_directories(droppix_tests PRIVATE gui)
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main Threads::Threads)
 include(GoogleTest)
 gtest_discover_tests(droppix_tests)
