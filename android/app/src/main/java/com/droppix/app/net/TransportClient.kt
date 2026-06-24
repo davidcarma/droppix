@@ -15,20 +15,20 @@ class TransportClient {
     fun run(host: String, port: Int, width: Int, height: Int, density: Int,
             listener: StreamListener, isRunning: () -> Boolean) {
         val socket = Socket()
-        socket.tcpNoDelay = true
-        socket.connect(InetSocketAddress(host, port), 5000)
-        socket.soTimeout = 1000  // periodic wakeups so isRunning() is checked
-
-        val out = socket.getOutputStream()
-        val input = socket.getInputStream()
-
-        out.write(Protocol.encodeMessage(MsgType.HELLO,
-            Protocol.encodeHello(Protocol.VERSION, width, height, density)))
-        out.flush()
-
-        val parser = MessageParser()
-        val chunk = ByteArray(65536)
         try {
+            socket.tcpNoDelay = true
+            socket.connect(InetSocketAddress(host, port), 5000)
+            socket.soTimeout = 1000  // periodic wakeups so isRunning() is checked
+
+            val out = socket.getOutputStream()
+            val input = socket.getInputStream()
+
+            out.write(Protocol.encodeMessage(MsgType.HELLO,
+                Protocol.encodeHello(Protocol.VERSION, width, height, density)))
+            out.flush()
+
+            val parser = MessageParser()
+            val chunk = ByteArray(65536)
             while (isRunning()) {
                 val n = try { input.read(chunk) } catch (e: java.net.SocketTimeoutException) { 0 }
                 if (n > 0) {
