@@ -78,7 +78,7 @@ class MainActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                 try {
                     Log.i(TAG, "connecting to $HOST:$PORT")
                     client.run(HOST, PORT, 1920, 1080,
-                        resources.displayMetrics.densityDpi, listener) { running }
+                        resources.displayMetrics.densityDpi, listener, { running })
                     Log.i(TAG, "stream session ended")
                 } catch (e: Exception) {
                     Log.w(TAG, "connect/stream failed: ${e.message}")

@@ -3,6 +3,8 @@ package com.droppix.app.net
 import com.droppix.app.protocol.MessageParser
 import com.droppix.app.protocol.MsgType
 import com.droppix.app.protocol.Protocol
+import com.droppix.app.stats.RateMeter
+import com.droppix.app.stats.StatsSink
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -12,8 +14,14 @@ interface StreamListener {
 }
 
 class TransportClient {
+    private fun longToBytes(x: Long) = ByteArray(8) { i -> (x ushr (56 - i * 8)).toByte() }
+    private fun bytesToLong(b: ByteArray): Long {
+        var x = 0L; for (i in 0 until 8) x = (x shl 8) or (b[i].toLong() and 0xFF); return x
+    }
+
     fun run(host: String, port: Int, width: Int, height: Int, density: Int,
-            listener: StreamListener, isRunning: () -> Boolean) {
+            listener: StreamListener, isRunning: () -> Boolean,
+            stats: StatsSink? = null, pingIntervalMs: Long = 1000) {
         val socket = Socket()
         try {
             socket.tcpNoDelay = true
@@ -29,7 +37,15 @@ class TransportClient {
 
             val parser = MessageParser()
             val chunk = ByteArray(65536)
+            val frameRate = RateMeter(1000)
+            var lastPing = 0L
             while (isRunning()) {
+                val nowMs = System.currentTimeMillis()
+                if (stats != null && nowMs - lastPing >= pingIntervalMs) {
+                    out.write(Protocol.encodeMessage(MsgType.PING, longToBytes(System.nanoTime())))
+                    out.flush()
+                    lastPing = nowMs
+                }
                 val n = try { input.read(chunk) } catch (e: java.net.SocketTimeoutException) { 0 }
                 if (n > 0) {
                     parser.feed(chunk, n)
@@ -37,8 +53,17 @@ class TransportClient {
                     while (msg != null) {
                         when (msg.type) {
                             MsgType.CONFIG -> Protocol.decodeConfig(msg.body)?.let(listener::onConfig)
-                            MsgType.VIDEO -> Protocol.decodeVideo(msg.body)?.let(listener::onVideo)
+                            MsgType.VIDEO -> {
+                                Protocol.decodeVideo(msg.body)?.let(listener::onVideo)
+                                if (stats != null) {
+                                    frameRate.mark(System.currentTimeMillis())
+                                    stats.fps = frameRate.ratePerSec(System.currentTimeMillis())
+                                }
+                            }
                             MsgType.PING -> { out.write(Protocol.encodeMessage(MsgType.PONG, msg.body)); out.flush() }
+                            MsgType.PONG -> if (stats != null && msg.body.size >= 8) {
+                                stats.rttMs = (System.nanoTime() - bytesToLong(msg.body)) / 1_000_000.0
+                            }
                             MsgType.BYE -> return
                             else -> { /* ignore */ }
                         }
