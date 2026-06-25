@@ -36,6 +36,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // uinput. Needs root + the droppix output present (evdi session); otherwise the
   // session runs display-only. The injector lives for the whole session.
   InputInjector injector;
+  tx_.set_input_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
   {
     Rect mon;
     auto outs = parse_kscreen_outputs(run_kscreen());
