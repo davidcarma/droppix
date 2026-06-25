@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <pwd.h>
 #include <string>
 
 namespace droppix {
@@ -14,24 +15,33 @@ static std::string run_kscreen() {
   std::string out;
   // The streamer runs as root (pkexec/sudo) and can't see the user's Wayland/KWin
   // session, so query as the invoking user with their reconstructed session env.
-  // timeout-guarded so it can never block the stream loop.
+  // Uses runuser (not sudo) — sudo often refuses to run without a tty, which a
+  // pkexec'd process lacks. timeout-guarded so it can never block the stream loop.
   const char* uid = std::getenv("PKEXEC_UID");
   if (!uid || !*uid) uid = std::getenv("SUDO_UID");
   std::string cmd;
   if (uid && *uid) {
     const std::string u(uid);
-    cmd = "timeout 2 sudo -u '#" + u + "' env "
-          "XDG_RUNTIME_DIR=/run/user/" + u + " "
-          "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + u + "/bus "
-          "WAYLAND_DISPLAY=wayland-0 kscreen-doctor -o 2>/dev/null";
+    const std::string env =
+        "XDG_RUNTIME_DIR=/run/user/" + u + " "
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + u + "/bus "
+        "WAYLAND_DISPLAY=wayland-0";
+    struct passwd* pw = getpwuid(static_cast<uid_t>(std::atoi(u.c_str())));
+    if (pw && pw->pw_name) {
+      cmd = std::string("timeout 3 runuser -u ") + pw->pw_name +
+            " -- env " + env + " kscreen-doctor -o 2>/dev/null";
+    } else {
+      cmd = "timeout 3 sudo -u '#" + u + "' env " + env + " kscreen-doctor -o 2>/dev/null";
+    }
   } else {
-    cmd = "timeout 2 kscreen-doctor -o 2>/dev/null";  // already in a user session
+    cmd = "timeout 3 kscreen-doctor -o 2>/dev/null";  // already in a user session
   }
   FILE* p = popen(cmd.c_str(), "r");
   if (!p) return out;
   char buf[4096]; size_t n;
   while ((n = fread(buf, 1, sizeof(buf), p)) > 0) out.append(buf, n);
   pclose(p);
+  std::fprintf(stderr, "input: kscreen query returned %zu bytes\n", out.size());
   return out;
 }
 
