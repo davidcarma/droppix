@@ -39,6 +39,7 @@ MainWindow::MainWindow(QWidget* parent)
   port_ = new QSpinBox; port_->setRange(1024, 65535); port_->setValue(27000);
   refresh_ = new QComboBox; refresh_->addItems({"30", "60"}); refresh_->setCurrentText("60");
   autoReverse_ = new QCheckBox("Auto adb reverse on start"); autoReverse_->setChecked(true);
+  touch_ = new QCheckBox("Touch input (evdi only — tap/drag the cursor)");
 
   auto* form = new QFormLayout;
   auto* srcRow = new QHBoxLayout; srcRow->addWidget(srcTest_); srcRow->addWidget(srcEvdi_); srcRow->addStretch();
@@ -49,6 +50,7 @@ MainWindow::MainWindow(QWidget* parent)
   form->addRow("Bitrate:", bitrate_);
   form->addRow("Port:", port_);
   form->addRow("", autoReverse_);
+  form->addRow("", touch_);
   auto* settingsBox = new QGroupBox("Settings");
   settingsBox->setLayout(form);
 
@@ -122,6 +124,7 @@ Settings MainWindow::collectSettings() const {
   s.fps = fps_->value(); s.bitrate_kbps = bitrate_->value(); s.port = port_->value();
   s.refresh_hz = refresh_->currentText().toInt();
   s.auto_adb_reverse = autoReverse_->isChecked();
+  s.touch = touch_->isChecked();
   return s;
 }
 
@@ -132,6 +135,7 @@ void MainWindow::applySettings(const Settings& s) {
   fps_->setValue(s.fps); bitrate_->setValue(s.bitrate_kbps); port_->setValue(s.port);
   refresh_->setCurrentText(QString::number(s.refresh_hz));
   autoReverse_->setChecked(s.auto_adb_reverse);
+  touch_->setChecked(s.touch);
 }
 
 void MainWindow::refreshProfiles() {
