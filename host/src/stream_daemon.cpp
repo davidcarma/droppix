@@ -36,6 +36,13 @@ static std::string run_kscreen() {
 }
 
 bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_frames) {
+  // For touch: snapshot the outputs BEFORE the source creates its monitor, so we
+  // can identify the droppix output as the one that newly appears afterwards.
+  std::vector<OutputInfo> before_outputs;
+  if (cfg_.touch && (cfg_.monitor.w <= 0 || cfg_.desktop_w <= 0)) {
+    before_outputs = parse_kscreen_outputs(run_kscreen());
+  }
+
   int w = 0, h = 0;
   if (!src_.start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
   std::fprintf(stderr, "source %dx%d\n", w, h);
@@ -59,9 +66,11 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
     Rect mon = cfg_.monitor;
     int dw = cfg_.desktop_w, dh = cfg_.desktop_h;
     if (mon.w <= 0 || mon.h <= 0 || dw <= 0 || dh <= 0) {
-      auto outs = parse_kscreen_outputs(run_kscreen());
-      if (select_droppix(outs, w, h, mon)) {
-        Rect db = desktop_bounds(outs); dw = db.w; dh = db.h;
+      auto after = parse_kscreen_outputs(run_kscreen());
+      Rect db = desktop_bounds(after); dw = db.w; dh = db.h;
+      // Prefer the newly-appeared output (unambiguous); else fall back to size-match.
+      if (!select_new_output(before_outputs, after, mon)) {
+        select_droppix(after, w, h, mon);
       }
     }
     if (mon.w > 0 && mon.h > 0 && dw > 0 && dh > 0 && injector.open(mon, dw, dh)) {
