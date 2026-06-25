@@ -5,11 +5,29 @@
 
 namespace droppix {
 
+// kscreen-doctor colorizes its output (ANSI escapes) even through a pipe; strip
+// them so sscanf/name parsing sees clean text.
+static std::string strip_ansi(const std::string& s) {
+  std::string out;
+  out.reserve(s.size());
+  for (size_t i = 0; i < s.size();) {
+    if (s[i] == '\x1b' && i + 1 < s.size() && s[i + 1] == '[') {
+      i += 2;
+      while (i < s.size() && s[i] != 'm') ++i;  // CSI ... 'm'
+      if (i < s.size()) ++i;                     // consume the 'm'
+    } else {
+      out.push_back(s[i++]);
+    }
+  }
+  return out;
+}
+
 std::vector<OutputInfo> parse_kscreen_outputs(const std::string& text) {
   std::vector<OutputInfo> outs;
   std::istringstream in(text);
   std::string line;
   while (std::getline(in, line)) {
+    line = strip_ansi(line);
     auto pos = line.find("Output:");
     if (pos != std::string::npos) {
       // "Output: <num> <name> ..."

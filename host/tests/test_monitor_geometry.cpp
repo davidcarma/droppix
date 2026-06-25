@@ -55,3 +55,20 @@ TEST(MonitorGeometry, NoNewOutputWhenUnchanged) {
   Rect r;
   EXPECT_FALSE(select_new_output(outs, outs, r));
 }
+
+TEST(MonitorGeometry, StripsAnsiColorCodes) {
+  // kscreen-doctor colorizes output even through a pipe; the parser must cope.
+  std::string colored =
+    "\033[01;32mOutput: \033[0;0m1 HDMI-A-3 uid1\n"
+    "\t\033[01;32menabled\033[0;0m\n"
+    "\t\033[01;33mGeometry: \033[0;0m0,0 1600x900\n"
+    "\033[01;32mOutput: \033[0;0m2 DVI-I-1 uid2\n"
+    "\t\033[01;32menabled\033[0;0m\n"
+    "\t\033[01;33mGeometry: \033[0;0m1920,900 800x600\n";
+  auto outs = parse_kscreen_outputs(colored);
+  ASSERT_EQ(outs.size(), 2u);
+  EXPECT_EQ(outs[0].name, "HDMI-A-3");
+  EXPECT_TRUE(outs[0].enabled);
+  EXPECT_EQ(outs[1].name, "DVI-I-1");
+  EXPECT_EQ(outs[1].geom.x, 1920); EXPECT_EQ(outs[1].geom.w, 800); EXPECT_EQ(outs[1].geom.h, 600);
+}
