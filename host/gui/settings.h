@@ -7,5 +7,6 @@ struct Settings {
   int fps = 30, bitrate_kbps = 8000, port = 27000;
   int refresh_hz = 60;
   bool auto_adb_reverse = true;
+  bool touch = false;   // enable tablet touch -> cursor (evdi only)
 };
 }  // namespace droppix

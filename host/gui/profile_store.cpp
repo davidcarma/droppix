@@ -30,6 +30,7 @@ static QJsonObject toJson(const Settings& s) {
   o["fps"] = s.fps; o["bitrate_kbps"] = s.bitrate_kbps; o["port"] = s.port;
   o["refresh_hz"] = s.refresh_hz;
   o["auto_adb_reverse"] = s.auto_adb_reverse;
+  o["touch"] = s.touch;
   return o;
 }
 static Settings fromJson(const QJsonObject& o) {
@@ -43,6 +44,7 @@ static Settings fromJson(const QJsonObject& o) {
   s.port = o["port"].toInt(s.port);
   s.refresh_hz = o["refresh_hz"].toInt(s.refresh_hz);
   s.auto_adb_reverse = o["auto_adb_reverse"].toBool(s.auto_adb_reverse);
+  s.touch = o["touch"].toBool(s.touch);
   return s;
 }
 

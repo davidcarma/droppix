@@ -12,6 +12,7 @@ Command build_command(const Settings& s, const std::string& stream_bin) {
   a.push_back("--height"); a.push_back(std::to_string(s.height));
   if (s.source == Settings::Source::Evdi) {
     a.push_back("--refresh"); a.push_back(std::to_string(s.refresh_hz));
+    if (s.touch) a.push_back("--touch");   // touch injection (evdi/root only)
   }
   a.push_back("--fps");     a.push_back(std::to_string(s.fps));
   a.push_back("--bitrate"); a.push_back(std::to_string(s.bitrate_kbps));

@@ -31,6 +31,18 @@ TEST(ArgsBuilder, EvdiUsesPkexecWithModeFlags) {
   EXPECT_TRUE(has(c.args, "--height")); EXPECT_TRUE(has(c.args, "1600"));
   EXPECT_TRUE(has(c.args, "--refresh")); EXPECT_TRUE(has(c.args, "60"));
   EXPECT_TRUE(has(c.args, "--stats-json"));
+  EXPECT_FALSE(has(c.args, "--touch"));   // off by default
+}
+
+TEST(ArgsBuilder, EvdiTouchFlagWhenEnabled) {
+  Settings s; s.source = Settings::Source::Evdi; s.touch = true;
+  Command c = build_command(s, "/path/droppix_stream");
+  EXPECT_TRUE(has(c.args, "--touch"));
+}
+TEST(ArgsBuilder, TestPatternNeverHasTouch) {
+  Settings s; s.source = Settings::Source::TestPattern; s.touch = true;
+  Command c = build_command(s, "/path/droppix_stream");
+  EXPECT_FALSE(has(c.args, "--touch"));   // touch is evdi-only
 }
 
 TEST(ArgsBuilder, AutoAdbReverseToggle) {

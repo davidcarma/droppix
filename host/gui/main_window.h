@@ -27,6 +27,7 @@ class MainWindow : public QMainWindow {
   QComboBox* resolution_; QSpinBox* fps_; QSpinBox* bitrate_; QSpinBox* port_;
   QComboBox* refresh_;
   QCheckBox* autoReverse_;
+  QCheckBox* touch_;
   QComboBox* profileBox_; QPushButton* startBtn_;
   QLabel* deviceLabel_; QLabel* streamLabel_; QLabel* statsLabel_;
   QPlainTextEdit* log_;

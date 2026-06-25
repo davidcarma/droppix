@@ -20,6 +20,8 @@ class DisplaySurfaceView @JvmOverloads constructor(
 
     private var listener: SurfaceListener? = null
     private var touchListener: TouchListener? = null
+    private var lastMoveSentMs = 0L
+    private val moveMinIntervalMs = 12L   // coalesce MOVEs to ~80 Hz max
 
     init { holder.addCallback(this) }
 
@@ -32,6 +34,13 @@ class DisplaySurfaceView @JvmOverloads constructor(
             android.view.MotionEvent.ACTION_MOVE -> 1
             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> 2
             else -> return false
+        }
+        // Coalesce the high-rate MOVE stream so a drag can't flood the host; DOWN
+        // and UP are always sent (a dropped UP would stick the button).
+        if (action == 1) {
+            val now = System.currentTimeMillis()
+            if (now - lastMoveSentMs < moveMinIntervalMs) return true
+            lastMoveSentMs = now
         }
         val w = width.coerceAtLeast(1); val h = height.coerceAtLeast(1)
         val xn = ((event.x / w).coerceIn(0f, 1f) * 65535f).toInt()
