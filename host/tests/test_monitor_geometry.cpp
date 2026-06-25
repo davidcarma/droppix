@@ -36,3 +36,22 @@ TEST(MonitorGeometry, SelectFailsWhenNoMatch) {
   Rect r;
   EXPECT_FALSE(select_droppix(parse_kscreen_outputs(kSample), 1234, 5678, r));
 }
+
+TEST(MonitorGeometry, SelectsNewOutputByDiffEvenIfSameSize) {
+  auto before = parse_kscreen_outputs(
+    "Output: 1 DP-2 x\n\tenabled\n\tGeometry: 0,0 1920x1080\n"
+    "Output: 2 DP-3 y\n\tenabled\n\tGeometry: 1920,0 1920x1080\n");
+  auto after = parse_kscreen_outputs(
+    "Output: 1 DP-2 x\n\tenabled\n\tGeometry: 0,0 1920x1080\n"
+    "Output: 2 DP-3 y\n\tenabled\n\tGeometry: 1920,0 1920x1080\n"
+    "Output: 3 Unknown-1 z\n\tenabled\n\tGeometry: 3840,0 1920x1080\n");
+  Rect r;
+  ASSERT_TRUE(select_new_output(before, after, r));
+  EXPECT_EQ(r.x, 3840); EXPECT_EQ(r.w, 1920); EXPECT_EQ(r.h, 1080);
+}
+TEST(MonitorGeometry, NoNewOutputWhenUnchanged) {
+  auto outs = parse_kscreen_outputs(
+    "Output: 1 DP-2 x\n\tenabled\n\tGeometry: 0,0 1920x1080\n");
+  Rect r;
+  EXPECT_FALSE(select_new_output(outs, outs, r));
+}

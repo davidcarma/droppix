@@ -65,4 +65,15 @@ bool select_droppix(const std::vector<OutputInfo>& outs, int mode_w, int mode_h,
   out = pick->geom;
   return true;
 }
+
+bool select_new_output(const std::vector<OutputInfo>& before,
+                       const std::vector<OutputInfo>& after, Rect& out) {
+  for (const auto& a : after) {
+    if (!a.enabled || a.geom.w <= 0 || a.geom.h <= 0) continue;
+    bool existed = false;
+    for (const auto& b : before) if (b.name == a.name) { existed = true; break; }
+    if (!existed) { out = a.geom; return true; }
+  }
+  return false;
+}
 }  // namespace droppix
