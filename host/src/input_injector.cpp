@@ -16,8 +16,7 @@ void emit(int fd, int type, int code, int val) {
 }
 }  // namespace
 
-bool InputInjector::open(const Rect& monitor, int desktop_w, int desktop_h) {
-  monitor_ = monitor; desktop_w_ = desktop_w; desktop_h_ = desktop_h;
+bool InputInjector::open() {
   fd_ = ::open("/dev/uinput", O_WRONLY | O_NONBLOCK);
   if (fd_ < 0) { std::fprintf(stderr, "uinput open failed (need root); input disabled\n"); return false; }
 
@@ -47,9 +46,9 @@ bool InputInjector::open(const Rect& monitor, int desktop_w, int desktop_h) {
 
 void InputInjector::inject(uint8_t action, uint16_t x_norm, uint16_t y_norm) {
   if (fd_ < 0) return;
-  AbsCoord c = map_to_abs(x_norm, y_norm, monitor_, desktop_w_, desktop_h_);
-  emit(fd_, EV_ABS, ABS_X, c.x);
-  emit(fd_, EV_ABS, ABS_Y, c.y);
+  // Device is bound to the droppix output, so 0..65535 spans that monitor directly.
+  emit(fd_, EV_ABS, ABS_X, x_norm);
+  emit(fd_, EV_ABS, ABS_Y, y_norm);
   if (action == 0) emit(fd_, EV_KEY, BTN_TOUCH, 1);       // touch down
   else if (action == 2) emit(fd_, EV_KEY, BTN_TOUCH, 0);  // touch up
   emit(fd_, EV_SYN, SYN_REPORT, 0);

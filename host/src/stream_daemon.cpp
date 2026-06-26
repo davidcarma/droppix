@@ -4,38 +4,37 @@
 #include "input_injector.h"
 #include "monitor_geometry.h"
 #include <chrono>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <pwd.h>
 #include <string>
+#include <thread>
 
 namespace droppix {
 
-static std::string run_kscreen() {
-  std::string out;
-  // The streamer runs as root (pkexec/sudo) and can't see the user's Wayland/KWin
-  // session, so query as the invoking user with their reconstructed session env.
-  // Uses runuser (not sudo) — sudo often refuses to run without a tty, which a
-  // pkexec'd process lacks. timeout-guarded so it can never block the stream loop.
+// The streamer runs as root (pkexec/sudo) and can't see the user's Wayland/KWin
+// session, so any session command (kscreen-doctor, KWin DBus) must run AS THE
+// invoking user with a reconstructed session env. Returns a command prefix like
+// "runuser -u name -- env XDG_RUNTIME_DIR=... " (empty if already a user session).
+// Uses runuser (not sudo): sudo often refuses without a tty, which pkexec lacks.
+static std::string user_cmd_prefix() {
   const char* uid = std::getenv("PKEXEC_UID");
   if (!uid || !*uid) uid = std::getenv("SUDO_UID");
-  std::string cmd;
-  if (uid && *uid) {
-    const std::string u(uid);
-    const std::string env =
-        "XDG_RUNTIME_DIR=/run/user/" + u + " "
-        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + u + "/bus "
-        "WAYLAND_DISPLAY=wayland-0";
-    struct passwd* pw = getpwuid(static_cast<uid_t>(std::atoi(u.c_str())));
-    if (pw && pw->pw_name) {
-      cmd = std::string("timeout 3 runuser -u ") + pw->pw_name +
-            " -- env " + env + " kscreen-doctor -o 2>/dev/null";
-    } else {
-      cmd = "timeout 3 sudo -u '#" + u + "' env " + env + " kscreen-doctor -o 2>/dev/null";
-    }
-  } else {
-    cmd = "timeout 3 kscreen-doctor -o 2>/dev/null";  // already in a user session
-  }
+  if (!uid || !*uid) return "env ";  // already in a user session
+  const std::string u(uid);
+  const std::string env =
+      "env XDG_RUNTIME_DIR=/run/user/" + u + " "
+      "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + u + "/bus "
+      "WAYLAND_DISPLAY=wayland-0 ";
+  struct passwd* pw = getpwuid(static_cast<uid_t>(std::atoi(u.c_str())));
+  if (pw && pw->pw_name) return std::string("runuser -u ") + pw->pw_name + " -- " + env;
+  return "sudo -u '#" + u + "' " + env;
+}
+
+static std::string run_kscreen() {
+  std::string out;
+  std::string cmd = "timeout 3 " + user_cmd_prefix() + "kscreen-doctor -o 2>/dev/null";
   FILE* p = popen(cmd.c_str(), "r");
   if (!p) return out;
   char buf[4096]; size_t n;
@@ -45,11 +44,39 @@ static std::string run_kscreen() {
   return out;
 }
 
+// Output names are short connector ids (DP-3, HDMI-A-3, ...); reject anything else
+// so the name can be safely interpolated into the bind shell command.
+static bool safe_output_name(const std::string& s) {
+  if (s.empty() || s.size() > 64) return false;
+  for (char c : s) if (!std::isalnum((unsigned char)c) && c != '-' && c != '_') return false;
+  return true;
+}
+
+// Map the droppix-touch device onto the droppix output via KWin's per-device
+// outputName DBus property, so the touchscreen's full range maps to that monitor
+// (instead of KWin's default output). Retries briefly: KWin needs a moment to
+// register the just-created uinput device. Runs detached so it never stalls the loop.
+static void bind_touch_to_output(std::string output_name) {
+  if (!safe_output_name(output_name)) return;
+  const std::string inner =
+      "QD=; for q in qdbus6 qdbus-qt6 qdbus; do command -v \"$q\" >/dev/null 2>&1 && QD=$q && break; done; "
+      "[ -z \"$QD\" ] && exit 0; "
+      "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do "
+      "for d in $(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice "
+      "org.kde.KWin.InputDeviceManager.ListTouch 2>/dev/null); do "
+      "n=$(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice/$d org.kde.KWin.InputDevice.name 2>/dev/null); "
+      "if [ \"$n\" = droppix-touch ]; then "
+      "\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice/$d org.kde.KWin.InputDevice.outputName " +
+      output_name + " 2>/dev/null && exit 0; fi; done; sleep 0.2; done";
+  std::string cmd = "timeout 6 " + user_cmd_prefix() + "sh -c '" + inner + "' >/dev/null 2>&1";
+  std::system(cmd.c_str());
+}
+
 bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_frames) {
   // For touch: snapshot the outputs BEFORE the source creates its monitor, so we
-  // can identify the droppix output as the one that newly appears afterwards.
+  // can identify the droppix output (by name) as the one that newly appears after.
   std::vector<OutputInfo> before_outputs;
-  if (cfg_.touch && (cfg_.monitor.w <= 0 || cfg_.desktop_w <= 0)) {
+  if (cfg_.touch) {
     before_outputs = parse_kscreen_outputs(run_kscreen());
   }
 
@@ -73,24 +100,26 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   InputInjector injector;
   tx_.set_input_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
   if (cfg_.touch) {
-    Rect mon = cfg_.monitor;
-    int dw = cfg_.desktop_w, dh = cfg_.desktop_h;
-    if (mon.w <= 0 || mon.h <= 0 || dw <= 0 || dh <= 0) {
-      auto after = parse_kscreen_outputs(run_kscreen());
-      Rect db = desktop_bounds(after); dw = db.w; dh = db.h;
-      // Prefer the newly-appeared output (unambiguous); else fall back to size-match.
-      if (!select_new_output(before_outputs, after, mon)) {
-        select_droppix(after, w, h, mon);
-      }
-    }
-    if (mon.w > 0 && mon.h > 0 && dw > 0 && dh > 0 && injector.open(mon, dw, dh)) {
+    // Identify the droppix output: prefer the newly-appeared one (unambiguous),
+    // else fall back to a size match. We need its NAME to bind the touch device.
+    auto after = parse_kscreen_outputs(run_kscreen());
+    OutputInfo droppix;
+    bool found = select_new_output(before_outputs, after, droppix) ||
+                 select_droppix(after, w, h, droppix);
+    if (injector.open()) {
       tx_.set_input_handler([&injector](uint8_t a, uint16_t x, uint16_t y) {
         injector.inject(a, x, y);
       });
-      std::fprintf(stderr, "input: injecting into %dx%d at (%d,%d), desktop %dx%d\n",
-                   mon.w, mon.h, mon.x, mon.y, dw, dh);
+      if (found && safe_output_name(droppix.name)) {
+        std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
+                     droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
+        std::thread(bind_touch_to_output, droppix.name).detach();
+      } else {
+        std::fprintf(stderr, "input: could not identify droppix output; touch may land "
+                     "on the wrong monitor (map 'droppix-touch' in System Settings > Touch Screen)\n");
+      }
     } else {
-      std::fprintf(stderr, "input: geometry/uinput unavailable; input disabled\n");
+      std::fprintf(stderr, "input: uinput unavailable (need root); input disabled\n");
     }
   }
 

@@ -64,7 +64,7 @@ Rect desktop_bounds(const std::vector<OutputInfo>& outs) {
   return Rect{0, 0, right, bottom};
 }
 
-bool select_droppix(const std::vector<OutputInfo>& outs, int mode_w, int mode_h, Rect& out) {
+bool select_droppix(const std::vector<OutputInfo>& outs, int mode_w, int mode_h, OutputInfo& out) {
   const OutputInfo* sized = nullptr;
   const OutputInfo* preferred = nullptr;
   for (const auto& o : outs) {
@@ -80,18 +80,31 @@ bool select_droppix(const std::vector<OutputInfo>& outs, int mode_w, int mode_h,
   }
   const OutputInfo* pick = preferred ? preferred : sized;
   if (!pick) return false;
-  out = pick->geom;
+  out = *pick;
+  return true;
+}
+bool select_droppix(const std::vector<OutputInfo>& outs, int mode_w, int mode_h, Rect& out) {
+  OutputInfo o;
+  if (!select_droppix(outs, mode_w, mode_h, o)) return false;
+  out = o.geom;
   return true;
 }
 
 bool select_new_output(const std::vector<OutputInfo>& before,
-                       const std::vector<OutputInfo>& after, Rect& out) {
+                       const std::vector<OutputInfo>& after, OutputInfo& out) {
   for (const auto& a : after) {
     if (!a.enabled || a.geom.w <= 0 || a.geom.h <= 0) continue;
     bool existed = false;
     for (const auto& b : before) if (b.name == a.name) { existed = true; break; }
-    if (!existed) { out = a.geom; return true; }
+    if (!existed) { out = a; return true; }
   }
   return false;
+}
+bool select_new_output(const std::vector<OutputInfo>& before,
+                       const std::vector<OutputInfo>& after, Rect& out) {
+  OutputInfo o;
+  if (!select_new_output(before, after, o)) return false;
+  out = o.geom;
+  return true;
 }
 }  // namespace droppix
