@@ -21,8 +21,11 @@ bool InputInjector::open(const Rect& monitor, int desktop_w, int desktop_h) {
   fd_ = ::open("/dev/uinput", O_WRONLY | O_NONBLOCK);
   if (fd_ < 0) { std::fprintf(stderr, "uinput open failed (need root); input disabled\n"); return false; }
 
+  // Declare a single-touch TOUCHSCREEN (absolute, maps to the screen) rather than
+  // a bare ABS pointer, which libinput would treat as a touchpad (relative).
+  ioctl(fd_, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
   ioctl(fd_, UI_SET_EVBIT, EV_KEY);
-  ioctl(fd_, UI_SET_KEYBIT, BTN_LEFT);
+  ioctl(fd_, UI_SET_KEYBIT, BTN_TOUCH);
   ioctl(fd_, UI_SET_EVBIT, EV_ABS);
   ioctl(fd_, UI_SET_ABSBIT, ABS_X);
   ioctl(fd_, UI_SET_ABSBIT, ABS_Y);
@@ -47,8 +50,8 @@ void InputInjector::inject(uint8_t action, uint16_t x_norm, uint16_t y_norm) {
   AbsCoord c = map_to_abs(x_norm, y_norm, monitor_, desktop_w_, desktop_h_);
   emit(fd_, EV_ABS, ABS_X, c.x);
   emit(fd_, EV_ABS, ABS_Y, c.y);
-  if (action == 0) emit(fd_, EV_KEY, BTN_LEFT, 1);       // down
-  else if (action == 2) emit(fd_, EV_KEY, BTN_LEFT, 0);  // up
+  if (action == 0) emit(fd_, EV_KEY, BTN_TOUCH, 1);       // touch down
+  else if (action == 2) emit(fd_, EV_KEY, BTN_TOUCH, 0);  // touch up
   emit(fd_, EV_SYN, SYN_REPORT, 0);
 }
 

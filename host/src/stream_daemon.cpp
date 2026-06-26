@@ -99,8 +99,11 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   StatAccumulator encode_ms, frame_kb;
   int frames_since_report = 0;
   auto last_report = std::chrono::steady_clock::now();
+  // With touch on, poll the loop tightly so incoming touch is handled promptly
+  // instead of being gated by the up-to-1s damage-driven frame wait.
+  const int frame_timeout = cfg_.touch ? 8 : 1000;
   while (!stop && tx_.connected()) {
-    Frame f = src_.next(1000);
+    Frame f = src_.next(frame_timeout);
     if (!f.valid) { tx_.poll_control(); continue; }
     int64_t pts_us = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::steady_clock::now() - t0).count();
