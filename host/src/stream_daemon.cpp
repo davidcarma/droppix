@@ -52,23 +52,38 @@ static bool safe_output_name(const std::string& s) {
   return true;
 }
 
-// Map the droppix-touch device onto the droppix output via KWin's per-device
-// outputName DBus property, so the touchscreen's full range maps to that monitor
-// (instead of KWin's default output). Retries briefly: KWin needs a moment to
-// register the just-created uinput device. Runs detached so it never stalls the loop.
+// Map the droppix-touch device onto the droppix output via KWin's per-device DBus
+// properties, so the touchscreen's full range maps to that monitor instead of KWin's
+// default output. Sets BOTH mapToWorkspace=false (else the device spans the whole
+// desktop and outputName is ignored) and outputName=<droppix>. Logs KWin's before/
+// after state to stderr (host log) so a single run shows exactly what KWin did.
+// Retries while KWin registers the new uinput device; runs detached / timeout-guarded.
 static void bind_touch_to_output(std::string output_name) {
   if (!safe_output_name(output_name)) return;
+  // Properties must be read/written via org.freedesktop.DBus.Properties (the qdbus
+  // shorthand "Interface.prop value" silently errors with UnknownInterface on these
+  // objects). G/S = Get/Set helpers. inner uses ONLY double quotes so it can be wrapped
+  // in single quotes for the outer shell — keeping $(...)/$VAR unexpanded until the
+  // inner sh (running as the user) evaluates them.
   const std::string inner =
       "QD=; for q in qdbus6 qdbus-qt6 qdbus; do command -v \"$q\" >/dev/null 2>&1 && QD=$q && break; done; "
-      "[ -z \"$QD\" ] && exit 0; "
+      "[ -z \"$QD\" ] && { echo \"[touch-bind] no qdbus available\" >&2; exit 0; }; "
+      "I=org.kde.KWin.InputDevice; PG=org.freedesktop.DBus.Properties.Get; PS=org.freedesktop.DBus.Properties.Set; "
       "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do "
       "for d in $(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice "
       "org.kde.KWin.InputDeviceManager.ListTouch 2>/dev/null); do "
-      "n=$(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice/$d org.kde.KWin.InputDevice.name 2>/dev/null); "
+      "P=/org/kde/KWin/InputDevice/$d; "
+      "n=$(\"$QD\" org.kde.KWin \"$P\" $PG $I name 2>/dev/null); "
       "if [ \"$n\" = droppix-touch ]; then "
-      "\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice/$d org.kde.KWin.InputDevice.outputName " +
-      output_name + " 2>/dev/null && exit 0; fi; done; sleep 0.2; done";
-  std::string cmd = "timeout 6 " + user_cmd_prefix() + "sh -c '" + inner + "' >/dev/null 2>&1";
+      "echo \"[touch-bind] found droppix-touch ($d) before mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)] target=" +
+      output_name + "\" >&2; "
+      "\"$QD\" org.kde.KWin \"$P\" $PS $I mapToWorkspace false 2>&1 | sed \"s/^/[touch-bind] set mapToWorkspace: /\" >&2; "
+      "\"$QD\" org.kde.KWin \"$P\" $PS $I outputName " + output_name +
+      " 2>&1 | sed \"s/^/[touch-bind] set outputName: /\" >&2; "
+      "echo \"[touch-bind] after mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)]\" >&2; "
+      "exit 0; fi; done; sleep 0.2; done; "
+      "echo \"[touch-bind] droppix-touch not found via ListTouch after retries\" >&2";
+  std::string cmd = "timeout 10 " + user_cmd_prefix() + "sh -c '" + inner + "'";
   std::system(cmd.c_str());
 }
 
