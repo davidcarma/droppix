@@ -25,6 +25,11 @@ class TransportServer {
   void set_input_handler(std::function<void(uint8_t, uint16_t, uint16_t)> h) {
     input_handler_ = std::move(h);
   }
+  // Called for each ORIENTATION message during poll_control (code: 0/1/2/3 =>
+  // 0/90/180/270). Same lifetime invariant as the input handler.
+  void set_orientation_handler(std::function<void(uint8_t)> h) {
+    orientation_handler_ = std::move(h);
+  }
   bool connected() const { return client_fd_ >= 0; }
   void close_all();
 
@@ -37,5 +42,6 @@ class TransportServer {
   uint16_t port_ = 0;
   MessageParser parser_;
   std::function<void(uint8_t, uint16_t, uint16_t)> input_handler_;
+  std::function<void(uint8_t)> orientation_handler_;
 };
 }  // namespace droppix

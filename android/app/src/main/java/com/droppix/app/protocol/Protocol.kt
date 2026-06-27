@@ -1,7 +1,7 @@
 package com.droppix.app.protocol
 
 enum class MsgType(val code: Int) {
-    HELLO(1), CONFIG(2), VIDEO(3), PING(4), PONG(5), BYE(6), INPUT(7);
+    HELLO(1), CONFIG(2), VIDEO(3), PING(4), PONG(5), BYE(6), INPUT(7), ORIENTATION(8);
     companion object {
         fun fromCode(c: Int): MsgType? = entries.firstOrNull { it.code == c }
     }
@@ -10,7 +10,7 @@ enum class MsgType(val code: Int) {
 data class ParsedMessage(val type: MsgType, val body: ByteArray)
 
 object Protocol {
-    const val VERSION = 1
+    const val VERSION = 2
 
     private fun putU32(out: ArrayList<Byte>, x: Int) {
         out.add((x ushr 24).toByte()); out.add((x ushr 16).toByte())
@@ -47,6 +47,9 @@ object Protocol {
         out.add((yNorm ushr 8).toByte()); out.add(yNorm.toByte())
         return out.toByteArray()
     }
+
+    // ORIENTATION body: u8 code (0=0°, 1=90°, 2=180°, 3=270°).
+    fun encodeOrientation(code: Int): ByteArray = byteArrayOf(code.toByte())
 
     data class Config(val width: Int, val height: Int, val fps: Int, val extradata: ByteArray)
     fun decodeConfig(body: ByteArray): Config? {

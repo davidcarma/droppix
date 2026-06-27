@@ -5,11 +5,12 @@
 namespace droppix {
 
 enum class MsgType : uint8_t {
-  Hello = 1, Config = 2, Video = 3, Ping = 4, Pong = 5, Bye = 6, Input = 7
+  Hello = 1, Config = 2, Video = 3, Ping = 4, Pong = 5, Bye = 6, Input = 7,
+  Orientation = 8
 };
 
 // Protocol version sent in HELLO. Bump on any wire-format change.
-constexpr uint32_t kProtocolVersion = 1;
+constexpr uint32_t kProtocolVersion = 2;
 
 // NOTE: the encoder uses x264 repeat-headers, so SPS/PPS travel IN-BAND ahead of
 // each IDR. The CONFIG message's extradata is therefore typically empty and a
@@ -58,5 +59,9 @@ bool decode_video(const std::vector<unsigned char>& body,
 std::vector<unsigned char> encode_input(uint8_t action, uint16_t x_norm, uint16_t y_norm);
 bool decode_input(const std::vector<unsigned char>& body,
                   uint8_t& action, uint16_t& x_norm, uint16_t& y_norm);
+
+// ORIENTATION (app->host): u8 code (0=0°, 1=90°, 2=180°, 3=270°).
+std::vector<unsigned char> encode_orientation(uint8_t code);
+bool decode_orientation(const std::vector<unsigned char>& body, uint8_t& code);
 
 }  // namespace droppix

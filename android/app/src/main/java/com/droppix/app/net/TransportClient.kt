@@ -31,6 +31,14 @@ class TransportClient {
         }
     }
 
+    fun sendOrientation(code: Int) {
+        val o = out ?: return
+        val msg = Protocol.encodeMessage(MsgType.ORIENTATION, Protocol.encodeOrientation(code))
+        synchronized(sendLock) {
+            try { o.write(msg); o.flush() } catch (e: Exception) { /* dropped; loop will close */ }
+        }
+    }
+
     fun run(host: String, port: Int, width: Int, height: Int, density: Int,
             listener: StreamListener, isRunning: () -> Boolean,
             stats: StatsSink? = null, pingIntervalMs: Long = 1000) {

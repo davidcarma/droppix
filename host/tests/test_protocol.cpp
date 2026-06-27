@@ -105,3 +105,22 @@ TEST(Protocol, InputTooShortInvalid) {
   uint8_t a; uint16_t x, y;
   EXPECT_FALSE(decode_input({0, 0}, a, x, y));
 }
+
+TEST(Protocol, OrientationRoundTrip) {
+  for (uint8_t c : {uint8_t(0), uint8_t(1), uint8_t(2), uint8_t(3)}) {
+    uint8_t out;
+    ASSERT_TRUE(decode_orientation(encode_orientation(c), out));
+    EXPECT_EQ(out, c);
+  }
+}
+TEST(Protocol, OrientationWireLayout) {
+  auto m = encode_message(MsgType::Orientation, encode_orientation(1));
+  // len = 1(type)+1(body)=2; type=8; body = 01
+  ASSERT_EQ(m.size(), 4u + 2u);
+  EXPECT_EQ(m[3], 2); EXPECT_EQ(m[4], 8); EXPECT_EQ(m[5], 0x01);
+}
+TEST(Protocol, OrientationBadLengthInvalid) {
+  uint8_t c;
+  EXPECT_FALSE(decode_orientation({}, c));
+  EXPECT_FALSE(decode_orientation({0, 0}, c));
+}

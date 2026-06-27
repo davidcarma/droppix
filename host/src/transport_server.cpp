@@ -100,6 +100,9 @@ void TransportServer::poll_control() {
     } else if (m.type == MsgType::Input && input_handler_) {
       uint8_t a; uint16_t x, y;
       if (decode_input(m.body, a, x, y)) input_handler_(a, x, y);
+    } else if (m.type == MsgType::Orientation && orientation_handler_) {
+      uint8_t code;
+      if (decode_orientation(m.body, code)) orientation_handler_(code);
     }
   }
 }

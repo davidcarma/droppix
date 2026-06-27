@@ -4,7 +4,9 @@ import android.app.Activity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
+import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.WindowManager
 import android.widget.TextView
@@ -28,6 +30,12 @@ class MainActivity : Activity(), DisplaySurfaceView.SurfaceListener {
     @Volatile private var client: TransportClient? = null
     private lateinit var surfaceView: DisplaySurfaceView
 
+    // Auto-orientation: the Activity is locked to landscape (manifest), so the
+    // SurfaceView always matches the 1920x1080 stream; we only DETECT the physical
+    // orientation here and report it to the host, which rotates the droppix output.
+    private val orientationMapper = OrientationMapper()
+    private var orientationListener: OrientationEventListener? = null
+
     private val stats = StatsSink()
     private val uiHandler = Handler(Looper.getMainLooper())
     private lateinit var overlay: TextView
@@ -46,6 +54,13 @@ class MainActivity : Activity(), DisplaySurfaceView.SurfaceListener {
         setContentView(R.layout.activity_main)
         surfaceView = findViewById(R.id.surface)
         overlay = findViewById(R.id.overlay)
+        orientationListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(angleDeg: Int) {
+                val code = orientationMapper.update(angleDeg, SystemClock.elapsedRealtime()) ?: return
+                Log.i(TAG, "orientation -> $code")
+                client?.sendOrientation(code)
+            }
+        }
     }
 
     override fun onResume() {
@@ -57,11 +72,13 @@ class MainActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             }
         })
         uiHandler.post(overlayTick)
+        orientationListener?.takeIf { it.canDetectOrientation() }?.enable()
     }
 
     override fun onPause() {
         super.onPause()
         uiHandler.removeCallbacks(overlayTick)
+        orientationListener?.disable()
         surfaceView.setTouchListener(null)
         surfaceView.setSurfaceListener(null)
         stopStreaming()
@@ -87,6 +104,7 @@ class MainActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             val listener = object : StreamListener {
                 override fun onConfig(config: Protocol.Config) {
                     Log.i(TAG, "CONFIG ${config.width}x${config.height}@${config.fps}")
+                    c.sendOrientation(orientationMapper.currentCode())  // sync host to current orientation
                     val s = surface ?: return
                     runOnUiThread { surfaceView.holder.setFixedSize(config.width, config.height) }
                     decoder?.release()
