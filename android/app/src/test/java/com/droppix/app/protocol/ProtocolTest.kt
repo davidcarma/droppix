@@ -62,4 +62,10 @@ class ProtocolTest {
         assertArrayEquals(
             byteArrayOf(0, 0, 0, 6, 7, 0x02, 0x01, 0x02, 0x03, 0x04), m)
     }
+
+    @Test fun encodeOrientationMatchesHostWireFormat() {
+        // code=1 ; encodeMessage adds [00 00 00 02][08]
+        val m = Protocol.encodeMessage(MsgType.ORIENTATION, Protocol.encodeOrientation(1))
+        assertArrayEquals(byteArrayOf(0, 0, 0, 2, 8, 0x01), m)
+    }
 }

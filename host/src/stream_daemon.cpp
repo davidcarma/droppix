@@ -3,10 +3,12 @@
 #include "stats_json.h"
 #include "input_injector.h"
 #include "monitor_geometry.h"
+#include "orientation.h"
 #include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <pwd.h>
 #include <string>
 #include <thread>
@@ -104,14 +106,11 @@ static void apply_rotation(const std::string& output_name, int degrees) {
 }
 
 bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_frames) {
-  // For touch/orientation we need the droppix output's NAME: snapshot the outputs
-  // BEFORE the source creates its monitor, so we can identify it as the one that
-  // newly appears afterwards.
-  const bool need_output = cfg_.touch || cfg_.orientation != 0;
-  std::vector<OutputInfo> before_outputs;
-  if (need_output) {
-    before_outputs = parse_kscreen_outputs(run_kscreen());
-  }
+  // We need the droppix output's NAME for orientation (incl. live auto-rotate) and
+  // touch: snapshot the outputs BEFORE the source creates its monitor, so we can
+  // identify it as the one that newly appears afterwards. Timeout-guarded and graceful
+  // (finds nothing for the test-pattern source, which has no droppix output).
+  std::vector<OutputInfo> before_outputs = parse_kscreen_outputs(run_kscreen());
 
   int w = 0, h = 0;
   if (!src_.start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
@@ -125,21 +124,30 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   if (!enc_.open(w, h, cfg_.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
   if (!tx_.send_config(w, h, cfg_.fps, enc_.extradata())) return false;
 
-  // Identify the droppix output (needed for orientation and/or touch): prefer the
+  // Identify the droppix output (for orientation and/or touch): prefer the
   // newly-appeared one (unambiguous), else fall back to a size match.
+  auto after_outputs = parse_kscreen_outputs(run_kscreen());
   OutputInfo droppix;
-  bool found_output = false;
-  if (need_output) {
-    auto after = parse_kscreen_outputs(run_kscreen());
-    found_output = select_new_output(before_outputs, after, droppix) ||
-                   select_droppix(after, w, h, droppix);
-    if (!found_output)
-      std::fprintf(stderr, "warning: could not identify the droppix output\n");
-  }
+  bool found_output = select_new_output(before_outputs, after_outputs, droppix) ||
+                      select_droppix(after_outputs, w, h, droppix);
+  const bool have_output = found_output && safe_output_name(droppix.name);
+  if (!found_output)
+    std::fprintf(stderr, "warning: could not identify the droppix output\n");
 
-  // Orientation (--orientation 90/180/270): rotate the droppix output via KWin.
-  if (cfg_.orientation != 0 && found_output && safe_output_name(droppix.name)) {
-    apply_rotation(droppix.name, cfg_.orientation);
+  // Orientation: apply the initial --orientation now, then let the tablet drive it
+  // LIVE via ORIENTATION messages (auto-rotate). The handler is self-contained
+  // (captures a copy of the output name), so it's safe across this session.
+  tx_.set_orientation_handler(nullptr);
+  if (have_output) {
+    if (cfg_.orientation != 0) apply_rotation(droppix.name, cfg_.orientation);
+    auto last_deg = std::make_shared<int>(cfg_.orientation);
+    std::string oname = droppix.name;
+    tx_.set_orientation_handler([oname, last_deg](uint8_t code) {
+      int deg = orientation_degrees(code);
+      if (deg == *last_deg) return;   // skip redundant kscreen calls
+      *last_deg = deg;
+      apply_rotation(oname, deg);
+    });
   }
 
   // Touch input (opt-in via --touch): inject the tablet's touches via a uinput
@@ -152,7 +160,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       tx_.set_input_handler([&injector](uint8_t a, uint16_t x, uint16_t y) {
         injector.inject(a, x, y);
       });
-      if (found_output && safe_output_name(droppix.name)) {
+      if (have_output) {
         std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                      droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
         std::thread(bind_touch_to_output, droppix.name).detach();

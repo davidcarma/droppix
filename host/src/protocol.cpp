@@ -124,4 +124,13 @@ bool decode_input(const std::vector<unsigned char>& b,
   return true;
 }
 
+std::vector<unsigned char> encode_orientation(uint8_t code) {
+  return {code};
+}
+bool decode_orientation(const std::vector<unsigned char>& b, uint8_t& code) {
+  if (b.size() != 1) return false;
+  code = b[0];
+  return true;
+}
+
 }  // namespace droppix
