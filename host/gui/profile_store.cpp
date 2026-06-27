@@ -9,6 +9,7 @@ namespace droppix {
 ProfileStore::ProfileStore(QString dir) : dir_(std::move(dir)) {}
 
 QString ProfileStore::path() const { return dir_ + "/profiles.json"; }
+QString ProfileStore::lastUsedPath() const { return dir_ + "/last_profile"; }
 
 static QJsonObject readAll(const QString& p) {
   QFile f(p);
@@ -70,5 +71,17 @@ bool ProfileStore::remove(const QString& name) {
   if (!all.contains(name)) return false;
   all.remove(name);
   return writeAll(dir_, path(), all);
+}
+
+void ProfileStore::setLastUsed(const QString& name) {
+  QDir().mkpath(dir_);
+  QFile f(lastUsedPath());
+  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) f.write(name.toUtf8());
+}
+
+QString ProfileStore::lastUsed() const {
+  QFile f(lastUsedPath());
+  if (!f.open(QIODevice::ReadOnly)) return {};
+  return QString::fromUtf8(f.readAll()).trimmed();
 }
 }  // namespace droppix

@@ -115,21 +115,20 @@ MainWindow::MainWindow(QWidget* parent)
   // --- Wiring ---
   connect(startBtn_, &QPushButton::clicked, this, &MainWindow::onStartStop);
   connect(saveBtn, &QPushButton::clicked, this, [this]{
-    if (!profileBox_->currentText().isEmpty()) {
-      store_.save(profileBox_->currentText(), collectSettings()); refreshProfiles();
-    }
+    const QString n = profileBox_->currentText();
+    if (!n.isEmpty()) { store_.save(n, collectSettings()); store_.setLastUsed(n); refreshProfiles(); }
   });
   connect(saveAsBtn, &QPushButton::clicked, this, [this]{
     bool ok; QString n = QInputDialog::getText(this, "Save profile", "Name:",
                                                QLineEdit::Normal, "", &ok);
-    if (ok && !n.isEmpty()) { store_.save(n, collectSettings()); refreshProfiles();
-                              profileBox_->setCurrentText(n); }
+    if (ok && !n.isEmpty()) { store_.save(n, collectSettings()); store_.setLastUsed(n);
+                              refreshProfiles(); profileBox_->setCurrentText(n); }
   });
   connect(delBtn, &QPushButton::clicked, this, [this]{
     if (!profileBox_->currentText().isEmpty()) { store_.remove(profileBox_->currentText()); refreshProfiles(); }
   });
   connect(profileBox_, &QComboBox::currentTextChanged, this, [this](const QString& n){
-    Settings s; if (!n.isEmpty() && store_.load(n, s)) applySettings(s);
+    Settings s; if (!n.isEmpty() && store_.load(n, s)) { applySettings(s); store_.setLastUsed(n); }
   });
 
   connect(&controller_, &StreamController::logLine, this, [this](const QString& l){ log_->appendPlainText(l); });
@@ -153,6 +152,7 @@ MainWindow::MainWindow(QWidget* parent)
   adbTimer_->start(3000);
   adb_.refresh();
   refreshProfiles();
+  restoreLastProfile();   // re-apply the profile that was in use last launch
 }
 
 Settings MainWindow::collectSettings() const {
@@ -185,6 +185,19 @@ void MainWindow::refreshProfiles() {
   profileBox_->clear();
   profileBox_->addItems(store_.names());
   if (!cur.isEmpty()) profileBox_->setCurrentText(cur);
+}
+
+void MainWindow::restoreLastProfile() {
+  const QStringList names = store_.names();
+  if (names.isEmpty()) return;
+  QString want = store_.lastUsed();
+  if (want.isEmpty() || !names.contains(want)) want = names.first();
+  Settings s;
+  if (!store_.load(want, s)) return;
+  QSignalBlocker block(profileBox_);   // populate fired no signal; apply manually
+  profileBox_->setCurrentText(want);
+  applySettings(s);
+  store_.setLastUsed(want);
 }
 
 void MainWindow::onStartStop() {

@@ -20,6 +20,7 @@ class MainWindow : public QMainWindow {
   void applySettings(const Settings& s);
   void onStartStop();
   void refreshProfiles();
+  void restoreLastProfile();
   void setRunningUi(bool running);
   void setStatusDot(const char* color);
 
