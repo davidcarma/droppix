@@ -35,3 +35,12 @@ TEST(ProfileStore, MissingProfileLoadFails) {
   Settings out;
   EXPECT_FALSE(store.load("nope", out));
 }
+
+TEST(ProfileStore, LastUsedRoundTrip) {
+  QTemporaryDir tmp;
+  ASSERT_TRUE(tmp.isValid());
+  EXPECT_TRUE(ProfileStore(tmp.path()).lastUsed().isEmpty());  // none yet
+  ProfileStore(tmp.path()).setLastUsed("hi-q");
+  // A fresh instance (simulating a restart) must read the persisted value.
+  EXPECT_EQ(ProfileStore(tmp.path()).lastUsed(), QString("hi-q"));
+}
