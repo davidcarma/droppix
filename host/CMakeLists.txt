@@ -31,6 +31,7 @@ add_library(droppix_core
   src/input_map.cpp
   src/monitor_geometry.cpp
   src/input_injector.cpp
+  src/mdns_browse.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -96,6 +97,7 @@ add_executable(droppix_tests
   tests/test_orientation.cpp
   tests/test_approval.cpp
   tests/test_wake.cpp
+  tests/test_mdns_browse.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
 )
