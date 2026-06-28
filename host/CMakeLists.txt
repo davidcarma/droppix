@@ -31,6 +31,7 @@ add_library(droppix_core
   src/input_map.cpp
   src/monitor_geometry.cpp
   src/input_injector.cpp
+  src/mdns_browse.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -54,14 +55,16 @@ if(Qt6_FOUND)
     gui/stats_parser.cpp
     gui/args_builder.cpp
   )
-  target_include_directories(droppix_gui PRIVATE gui)
+  target_include_directories(droppix_gui PRIVATE gui src)
   target_link_libraries(droppix_gui PRIVATE Qt6::Widgets Qt6::Network)
   target_sources(droppix_gui PRIVATE
     gui/profile_store.cpp
     gui/stream_controller.cpp
     gui/adb_manager.cpp
     gui/mdns_advertiser.cpp
+    gui/mdns_browser.cpp
     gui/approved_store.cpp
+    src/mdns_browse.cpp
   )
 else()
   message(STATUS "Qt6 not found; skipping droppix_gui")
@@ -95,6 +98,8 @@ add_executable(droppix_tests
   tests/test_monitor_geometry.cpp
   tests/test_orientation.cpp
   tests/test_approval.cpp
+  tests/test_wake.cpp
+  tests/test_mdns_browse.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
 )

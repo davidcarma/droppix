@@ -1,5 +1,6 @@
 package com.droppix.app.ui
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -13,6 +14,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.droppix.app.R
 import com.droppix.app.net.Discovery
+import com.droppix.app.net.WakeService
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var pcList: ListView
@@ -22,6 +24,7 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var reconnectBtn: Button
 
     private lateinit var discovery: Discovery
+    private lateinit var wakeService: WakeService
     private lateinit var pcListAdapter: ArrayAdapter<String>
     private data class DiscoveredPc(val name: String, val host: String, val port: Int)
     private val discoveredPcs = mutableListOf<DiscoveredPc>()
@@ -37,6 +40,7 @@ class ConnectActivity : AppCompatActivity() {
         reconnectBtn = findViewById(R.id.reconnect_btn)
 
         discovery = Discovery(this)
+        wakeService = WakeService(this)
         pcListAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
         pcList.adapter = pcListAdapter
         pcList.setOnItemClickListener { _, _, position, _ ->
@@ -56,13 +60,23 @@ class ConnectActivity : AppCompatActivity() {
             onFound = { name, host, port -> onPcFound(name, host, port) },
             onLost = { name -> onPcLost(name) }
         )
+        wakeService.start { host, port -> showWakeConfirm(host, port) }
     }
 
     override fun onPause() {
         super.onPause()
         discovery.stop()
+        wakeService.stop()
         discoveredPcs.clear()
         refreshPcListAdapter()
+    }
+
+    private fun showWakeConfirm(host: String, port: Int) {
+        AlertDialog.Builder(this)
+            .setTitle("Connect to $host?")
+            .setPositiveButton("Connect") { _, _ -> connectTo(host, port) }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun onPcFound(name: String, host: String, port: Int) {
