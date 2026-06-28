@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 #include "protocol.h"
 
@@ -12,7 +13,7 @@ class TransportServer {
   uint16_t port() const { return port_; }
   bool accept_client(int timeout_ms);
   bool read_hello(uint32_t& version, uint32_t& w, uint32_t& h, uint32_t& density,
-                  int timeout_ms);
+                  std::string& name, std::string& id, int timeout_ms);
   bool send_config(uint32_t w, uint32_t h, uint32_t fps,
                    const std::vector<unsigned char>& extradata);
   bool send_video(uint64_t pts_us, bool keyframe,

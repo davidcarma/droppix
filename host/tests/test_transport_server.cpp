@@ -15,7 +15,7 @@ static void client_thread(uint16_t port, bool* ok) {
   inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
   if (::connect(fd, (sockaddr*)&addr, sizeof(addr)) != 0) { ::close(fd); return; }
 
-  auto hello = encode_message(MsgType::Hello, encode_hello(kProtocolVersion, 1920, 1080, 320));
+  auto hello = encode_message(MsgType::Hello, encode_hello(kProtocolVersion, 1920, 1080, 320, "TestTablet", "test-id-1"));
   ::send(fd, hello.data(), hello.size(), 0);
 
   MessageParser p; ParsedMessage m;
@@ -44,10 +44,11 @@ TEST(TransportServer, HandshakeThenVideo) {
   std::thread t(client_thread, port, &client_ok);
 
   ASSERT_TRUE(s.accept_client(2000));
-  uint32_t ver, w, h, d;
-  ASSERT_TRUE(s.read_hello(ver, w, h, d, 2000));
+  uint32_t ver, w, h, d; std::string name, id;
+  ASSERT_TRUE(s.read_hello(ver, w, h, d, name, id, 2000));
   EXPECT_EQ(ver, kProtocolVersion);
   EXPECT_EQ(w, 1920u); EXPECT_EQ(h, 1080u);
+  EXPECT_EQ(name, "TestTablet"); EXPECT_EQ(id, "test-id-1");
   ASSERT_TRUE(s.send_config(1920, 1080, 30, {0x67, 0x42}));
   ASSERT_TRUE(s.send_video(1000, true, {0x00, 0x00, 0x00, 0x01, 0x65}));
 
