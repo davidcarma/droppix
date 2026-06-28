@@ -4,6 +4,7 @@
 #include "profile_store.h"
 #include "stream_controller.h"
 #include "adb_manager.h"
+#include "mdns_advertiser.h"
 
 class QComboBox; class QSpinBox; class QCheckBox; class QPushButton;
 class QLabel; class QPlainTextEdit; class QRadioButton; class QTimer;
@@ -41,6 +42,7 @@ class MainWindow : public QMainWindow {
   ProfileStore store_;
   StreamController controller_;
   AdbManager adb_;
+  MdnsAdvertiser advertiser_;
   QTimer* adbTimer_;
   std::string streamBin_;
 };

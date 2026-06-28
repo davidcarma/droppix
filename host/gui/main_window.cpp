@@ -160,7 +160,10 @@ MainWindow::MainWindow(QWidget* parent)
       statsLabel_->setText("—");
     }
   });
-  connect(&controller_, &StreamController::runningChanged, this, [this](bool r){ setRunningUi(r); });
+  connect(&controller_, &StreamController::runningChanged, this, [this](bool r){
+    setRunningUi(r);
+    if (r) advertiser_.start(collectSettings().port); else advertiser_.stop();
+  });
   connect(&adb_, &AdbManager::deviceStatus, this, [this](const QString& st){ deviceLabel_->setText("Device: " + st); });
 
   adbTimer_ = new QTimer(this);
@@ -287,6 +290,7 @@ void MainWindow::setRunningUi(bool running) {
 
 void MainWindow::closeEvent(QCloseEvent* event) {
   controller_.stop();          // don't orphan the streamer on quit
+  advertiser_.stop();
   QMainWindow::closeEvent(event);
 }
 }  // namespace droppix

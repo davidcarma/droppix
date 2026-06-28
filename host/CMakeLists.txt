@@ -46,7 +46,7 @@ add_executable(droppix_stream src/stream_main.cpp)
 target_link_libraries(droppix_stream PRIVATE droppix_core)
 
 set(CMAKE_AUTOMOC ON)
-find_package(Qt6 QUIET COMPONENTS Widgets)
+find_package(Qt6 QUIET COMPONENTS Widgets Network)
 if(Qt6_FOUND)
   add_executable(droppix_gui
     gui/main.cpp
@@ -55,11 +55,12 @@ if(Qt6_FOUND)
     gui/args_builder.cpp
   )
   target_include_directories(droppix_gui PRIVATE gui)
-  target_link_libraries(droppix_gui PRIVATE Qt6::Widgets)
+  target_link_libraries(droppix_gui PRIVATE Qt6::Widgets Qt6::Network)
   target_sources(droppix_gui PRIVATE
     gui/profile_store.cpp
     gui/stream_controller.cpp
     gui/adb_manager.cpp
+    gui/mdns_advertiser.cpp
   )
 else()
   message(STATUS "Qt6 not found; skipping droppix_gui")
