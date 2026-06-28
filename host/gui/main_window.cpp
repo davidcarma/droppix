@@ -365,6 +365,7 @@ void MainWindow::setRunningUi(bool running) {
 void MainWindow::closeEvent(QCloseEvent* event) {
   controller_.stop();          // don't orphan the streamer on quit
   advertiser_.stop();
+  browser_.stop();
   QMainWindow::closeEvent(event);
 }
 }  // namespace droppix
