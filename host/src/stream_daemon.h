@@ -4,6 +4,7 @@
 #include "encoder.h"
 #include "transport_server.h"
 #include "input_map.h"   // droppix::Rect
+#include "approval.h"    // droppix::ApprovalGate
 
 namespace droppix {
 struct StreamConfig {
@@ -14,6 +15,8 @@ struct StreamConfig {
   int orientation = 0;         // initial orientation code (0..3); only seeds dims now
   int* live_orientation = nullptr;  // session writes the latest reported code here so
                                     // the caller can rebuild the source at new dims
+  bool approve = false;        // gate non-localhost peers on an approve/deny reply
+  ApprovalGate* gate = nullptr;  // stdin-fed approval channel (owned by stream_main)
 };
 
 class StreamDaemon {

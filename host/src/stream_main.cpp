@@ -11,9 +11,14 @@
 #include "test_pattern_source.h"
 #include "evdi_frame_source.h"
 #include "software_encoder.h"
+#include "approval.h"
 
 static volatile std::sig_atomic_t g_stop = 0;
 static void on_sigint(int) { g_stop = 1; }
+
+// Approve/deny replies for non-localhost peers arrive as lines on stdin (see the
+// stdin reader thread below); the daemon's run_until() blocks on g_gate.wait(id).
+static droppix::ApprovalGate g_gate;
 
 // Latest orientation code (0..3) the tablet reported; seeds each session's dims.
 // Written by the daemon's orientation handler, read here to rebuild at new dims.
@@ -27,6 +32,7 @@ int main(int argc, char** argv) {
   int port = 27000, fps = 30, bitrate = 8000, frames = 0;
   int width = 1920, height = 1080, refresh = 60;
   bool test_pattern = false, adb_reverse = false, stats_json = false, touch = false;
+  bool approve = false;
   int mx = 0, my = 0, mw = 0, mh = 0, dtw = 0, dth = 0;  // --monitor / --desktop
   int orientation = 0;                                   // --orientation 0/90/180/270
 
@@ -38,6 +44,7 @@ int main(int argc, char** argv) {
     else if (a == "--adb-reverse") adb_reverse = true;
     else if (a == "--stats-json") stats_json = true;
     else if (a == "--touch") touch = true;
+    else if (a == "--approve") approve = true;
     else if (a == "--port") port = val();
     else if (a == "--fps") fps = val();
     else if (a == "--bitrate") bitrate = val();
@@ -81,7 +88,16 @@ int main(int argc, char** argv) {
   if (frames == 0 && !isatty(STDIN_FILENO)) {
     std::thread([]{
       char c;
-      while (::read(STDIN_FILENO, &c, sizeof(c)) > 0) { /* drain */ }
+      std::string buf;
+      while (::read(STDIN_FILENO, &c, sizeof(c)) > 0) {
+        if (c == '\n') {
+          std::string id; bool allow = false;
+          if (droppix::parse_approval(buf, id, allow)) g_gate.submit(id, allow);
+          buf.clear();
+        } else {
+          buf.push_back(c);
+        }
+      }
       g_stop = 1;   // EOF/error on stdin -> ask for a graceful shutdown
       // If we don't exit promptly (e.g. blocked waiting for a client between sessions),
       // force it — the kernel closes the evdi fd, which tears down the virtual monitor.
@@ -106,7 +122,7 @@ int main(int argc, char** argv) {
                      : static_cast<droppix::FrameSource&>(evdi);
     droppix::StreamDaemon daemon(src, enc, tx,
         {fps, bitrate, stats_json, touch, droppix::Rect{mx, my, mw, mh}, dtw, dth,
-         orientation, &g_orientation});
+         orientation, &g_orientation, approve, &g_gate});
     daemon.run_until(g_stop, frames);
     if (frames > 0) break;  // one-shot (test) mode exits after a single session
   }

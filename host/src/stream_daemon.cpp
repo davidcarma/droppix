@@ -104,6 +104,16 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   if (!tx_.read_hello(cver, cw, ch, density, cname, cid, 10000)) { std::fprintf(stderr, "no HELLO\n"); return false; }
   std::fprintf(stderr, "client HELLO v%u %ux%u name=%s id=%s\n", cver, cw, ch, cname.c_str(), cid.c_str());
 
+  if (cfg_.approve && cfg_.gate && tx_.peer_ip() != "127.0.0.1") {
+    std::fprintf(stderr, "approve-request id=%s name=%s ip=%s\n",
+                 cid.c_str(), cname.c_str(), tx_.peer_ip().c_str());
+    bool allow = false;
+    if (!cfg_.gate->wait(cid.empty() ? tx_.peer_ip() : cid, 60000, allow) || !allow) {
+      std::fprintf(stderr, "connection from %s denied\n", tx_.peer_ip().c_str());
+      return false;   // closes the socket; reconnect loop continues
+    }
+  }
+
   if (!enc_.open(w, h, cfg_.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
   if (!tx_.send_config(w, h, cfg_.fps, enc_.extradata())) return false;
 
