@@ -12,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.droppix.app.R
+import com.droppix.app.net.Discovery
 
 class ConnectActivity : AppCompatActivity() {
     private lateinit var pcList: ListView
@@ -19,6 +20,11 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var connectBtn: Button
     private lateinit var status: TextView
     private lateinit var reconnectBtn: Button
+
+    private lateinit var discovery: Discovery
+    private lateinit var pcListAdapter: ArrayAdapter<String>
+    private data class DiscoveredPc(val name: String, val host: String, val port: Int)
+    private val discoveredPcs = mutableListOf<DiscoveredPc>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,12 +36,55 @@ class ConnectActivity : AppCompatActivity() {
         status = findViewById(R.id.status)
         reconnectBtn = findViewById(R.id.reconnect_btn)
 
-        // Placeholder: discovered-PCs list is populated by Task 8 (network discovery).
-        pcList.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+        discovery = Discovery(this)
+        pcListAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
+        pcList.adapter = pcListAdapter
+        pcList.setOnItemClickListener { _, _, position, _ ->
+            val pc = discoveredPcs.getOrNull(position) ?: return@setOnItemClickListener
+            status.text = "Connecting to ${pc.name} (${pc.host}:${pc.port})..."
+            connectTo(pc.host, pc.port)
+        }
 
         connectBtn.setOnClickListener { onConnectClicked() }
         updateReconnectRow()
         reconnectBtn.setOnClickListener { onReconnectClicked() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        discovery.start(
+            onFound = { name, host, port -> onPcFound(name, host, port) },
+            onLost = { name -> onPcLost(name) }
+        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        discovery.stop()
+        discoveredPcs.clear()
+        refreshPcListAdapter()
+    }
+
+    private fun onPcFound(name: String, host: String, port: Int) {
+        val idx = discoveredPcs.indexOfFirst { it.name == name }
+        val pc = DiscoveredPc(name, host, port)
+        if (idx >= 0) {
+            discoveredPcs[idx] = pc
+        } else {
+            discoveredPcs.add(pc)
+        }
+        refreshPcListAdapter()
+    }
+
+    private fun onPcLost(name: String) {
+        discoveredPcs.removeAll { it.name == name }
+        refreshPcListAdapter()
+    }
+
+    private fun refreshPcListAdapter() {
+        pcListAdapter.clear()
+        pcListAdapter.addAll(discoveredPcs.map { "${it.name} (${it.host}:${it.port})" })
+        pcListAdapter.notifyDataSetChanged()
     }
 
     private fun onConnectClicked() {
