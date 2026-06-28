@@ -7,6 +7,10 @@
 #include <QProcess>
 #include <QTemporaryFile>
 #include <QFile>
+#include <QUdpSocket>
+#include <QHostAddress>
+#include <QDateTime>
+#include "wake.h"
 
 namespace droppix {
 
@@ -108,6 +112,16 @@ MainWindow::MainWindow(QWidget* parent)
   if (QFile::exists(configDir() + "/auth_configured")) authRow_->hide();
   connect(authBtn, &QPushButton::clicked, this, &MainWindow::setupAuth);
 
+  // --- Devices on network (mDNS-discovered tablets) ---
+  devicesList_ = new QListWidget;
+  devicesList_->setMaximumHeight(120);
+  connectBtn_ = new QPushButton("Connect");
+  auto* devicesLayout = new QVBoxLayout;
+  devicesLayout->addWidget(devicesList_);
+  devicesLayout->addWidget(connectBtn_);
+  devicesBox_ = new QGroupBox("Devices on network");
+  devicesBox_->setLayout(devicesLayout);
+
   auto* logCaption = new QLabel("Log"); logCaption->setObjectName("caption");
   log_ = new QPlainTextEdit; log_->setReadOnly(true);
   log_->setMaximumBlockCount(1000);
@@ -123,6 +137,7 @@ MainWindow::MainWindow(QWidget* parent)
   root->addWidget(deviceLabel_);
   root->addWidget(startBtn_);
   root->addWidget(authRow_);
+  root->addWidget(devicesBox_);
   root->addWidget(logCaption);
   root->addWidget(log_, 1);
   auto* central = new QWidget; central->setLayout(root);
@@ -167,6 +182,16 @@ MainWindow::MainWindow(QWidget* parent)
   });
   connect(&controller_, &StreamController::approvalRequested, this,
     [this](const QString& id, const QString& name, const QString& ip){
+      // Auto-approve a peer we just woke ourselves (the PC already chose it by
+      // clicking Connect on the Devices panel) — skip the remembered-id/dialog path.
+      const qint64 woken = pendingWakes_.value(ip, 0);
+      if (woken && QDateTime::currentMSecsSinceEpoch() - woken < 15000) {
+        pendingWakes_.remove(ip);
+        const QString key = id.isEmpty() ? ip : id;
+        approved_.approve(key);                 // remember it too
+        controller_.writeLine("approve " + key);
+        return;
+      }
       const QString key = id.isEmpty() ? ip : id;
       if (approved_.isApproved(key)) { controller_.writeLine("approve " + key); return; }
       auto btn = QMessageBox::question(this, "Allow connection?",
@@ -176,12 +201,51 @@ MainWindow::MainWindow(QWidget* parent)
     });
   connect(&adb_, &AdbManager::deviceStatus, this, [this](const QString& st){ deviceLabel_->setText("Device: " + st); });
 
+  connect(&browser_, &MdnsBrowser::devicesChanged, this, &MainWindow::onDevicesChanged);
+  connect(connectBtn_, &QPushButton::clicked, this, &MainWindow::onConnectToSelectedDevice);
+  connect(devicesList_, &QListWidget::itemDoubleClicked, this,
+          [this](QListWidgetItem*){ onConnectToSelectedDevice(); });
+
+  if (browser_.available()) browser_.start();
+  else devicesBox_->hide();
+
   adbTimer_ = new QTimer(this);
   connect(adbTimer_, &QTimer::timeout, this, [this]{ adb_.refresh(); });
   adbTimer_->start(3000);
   adb_.refresh();
   refreshProfiles();
   restoreLastProfile();   // re-apply the profile that was in use last launch
+}
+
+void MainWindow::onDevicesChanged(const QList<MdnsDevice>& devices) {
+  const QString prevSelected = devicesList_->currentItem()
+      ? devicesList_->currentItem()->text() : QString();
+  devicesList_->clear();
+  for (const auto& d : devices) {
+    const QString name = QString::fromStdString(d.name);
+    const QString address = QString::fromStdString(d.address);
+    auto* item = new QListWidgetItem(QString("%1 (%2)").arg(name, address));
+    item->setData(Qt::UserRole, address);
+    item->setData(Qt::UserRole + 1, (uint)d.port);
+    devicesList_->addItem(item);
+    if (item->text() == prevSelected) devicesList_->setCurrentItem(item);
+  }
+}
+
+void MainWindow::onConnectToSelectedDevice() {
+  auto* item = devicesList_->currentItem();
+  if (!item) return;
+  const QString addr = item->data(Qt::UserRole).toString();
+  const quint16 wakePort = (quint16)item->data(Qt::UserRole + 1).toUInt();
+  if (addr.isEmpty()) return;
+
+  if (!controller_.running()) onStartStop();
+
+  auto bytes = encode_wake((uint16_t)collectSettings().port);  // PC stream port the tablet will dial
+  QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
+  pendingWakes_[addr] = QDateTime::currentMSecsSinceEpoch();
+  QUdpSocket sock;
+  sock.writeDatagram(dg, QHostAddress(addr), wakePort);
 }
 
 Settings MainWindow::collectSettings() const {
