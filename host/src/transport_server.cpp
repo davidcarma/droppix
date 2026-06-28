@@ -41,21 +41,29 @@ bool TransportServer::wait_readable(int fd, int timeout_ms) {
 bool TransportServer::accept_client(int timeout_ms) {
   close_all();  // drop any prior client so its fd can't leak on a new accept
   if (!wait_readable(listen_fd_, timeout_ms)) return false;
-  client_fd_ = ::accept(listen_fd_, nullptr, nullptr);
+  sockaddr_in cli{};
+  socklen_t cli_len = sizeof(cli);
+  client_fd_ = ::accept(listen_fd_, (sockaddr*)&cli, &cli_len);
   if (client_fd_ < 0) return false;
+  char buf[INET_ADDRSTRLEN] = {0};
+  if (inet_ntop(AF_INET, &cli.sin_addr, buf, sizeof(buf))) {
+    peer_ip_ = buf;
+  } else {
+    peer_ip_.clear();
+  }
   int yes = 1;
   setsockopt(client_fd_, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
   return true;
 }
 
 bool TransportServer::read_hello(uint32_t& version, uint32_t& w, uint32_t& h, uint32_t& density,
-                                 int timeout_ms) {
+                                 std::string& name, std::string& id, int timeout_ms) {
   unsigned char buf[1024];
   ParsedMessage m;
   for (;;) {
     if (parser_.next(m)) {
       if (m.type != MsgType::Hello) continue;
-      return decode_hello(m.body, version, w, h, density);
+      return decode_hello(m.body, version, w, h, density, name, id);
     }
     if (!wait_readable(client_fd_, timeout_ms)) return false;
     ssize_t n = ::recv(client_fd_, buf, sizeof(buf), 0);

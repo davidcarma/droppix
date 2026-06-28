@@ -61,15 +61,25 @@ bool MessageParser::next(ParsedMessage& out) {
   }
 }
 
-std::vector<unsigned char> encode_hello(uint32_t version, uint32_t w, uint32_t h, uint32_t d) {
-  std::vector<unsigned char> b; put_u32(b, version); put_u32(b, w); put_u32(b, h); put_u32(b, d);
+std::vector<unsigned char> encode_hello(uint32_t version, uint32_t w, uint32_t h,
+                                        uint32_t d, const std::string& name, const std::string& id) {
+  std::vector<unsigned char> b;
+  put_u32(b, version); put_u32(b, w); put_u32(b, h); put_u32(b, d);
+  put_u16(b, (uint16_t)name.size()); b.insert(b.end(), name.begin(), name.end());
+  put_u16(b, (uint16_t)id.size());   b.insert(b.end(), id.begin(),   id.end());
   return b;
 }
 bool decode_hello(const std::vector<unsigned char>& b, uint32_t& version,
-                  uint32_t& w, uint32_t& h, uint32_t& d) {
-  if (b.size() != 16) return false;
-  version = get_u32(b.data()); w = get_u32(b.data() + 4);
-  h = get_u32(b.data() + 8); d = get_u32(b.data() + 12);
+                  uint32_t& w, uint32_t& h, uint32_t& d, std::string& name, std::string& id) {
+  if (b.size() < 16) return false;
+  version = get_u32(b.data()); w = get_u32(b.data()+4);
+  h = get_u32(b.data()+8); d = get_u32(b.data()+12);
+  name.clear(); id.clear();
+  size_t p = 16;
+  if (b.size() >= p+2) { uint16_t n = get_u16(b.data()+p); p += 2;
+    if (b.size() >= p+n) { name.assign(b.begin()+p, b.begin()+p+n); p += n; } else return true; }
+  if (b.size() >= p+2) { uint16_t n = get_u16(b.data()+p); p += 2;
+    if (b.size() >= p+n) { id.assign(b.begin()+p, b.begin()+p+n); } }
   return true;
 }
 

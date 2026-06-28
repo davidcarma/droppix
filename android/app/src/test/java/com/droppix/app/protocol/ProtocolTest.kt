@@ -14,12 +14,24 @@ class ProtocolTest {
 
     @Test fun encodeHelloLayout() {
         val b = Protocol.encodeHello(1, 1920, 1080, 320)
-        assertEquals(16, b.size)
+        // 4xu32 header + empty name (u16 len=0) + empty id (u16 len=0) when name/id omitted.
+        assertEquals(20, b.size)
         // version=1, width=1920(0x780), height=1080(0x438), density=320(0x140)
         assertArrayEquals(byteArrayOf(0,0,0,1), b.copyOfRange(0,4))
         assertArrayEquals(byteArrayOf(0,0,0x07,0x80.toByte()), b.copyOfRange(4,8))
         assertArrayEquals(byteArrayOf(0,0,0x04,0x38), b.copyOfRange(8,12))
         assertArrayEquals(byteArrayOf(0,0,0x01,0x40), b.copyOfRange(12,16))
+        assertArrayEquals(byteArrayOf(0,0), b.copyOfRange(16,18))
+        assertArrayEquals(byteArrayOf(0,0), b.copyOfRange(18,20))
+    }
+
+    @Test fun encodeHelloV3MatchesHostWireFormat() {
+        // version=3,w=1,h=2,density=3, name="ab", id="cd"
+        val b = Protocol.encodeHello(3, 1, 2, 3, "ab", "cd")
+        // 4xu32 + u16 len + "ab" + u16 len + "cd"
+        assertArrayEquals(byteArrayOf(0,0,0,3, 0,0,0,1, 0,0,0,2, 0,0,0,3,
+                                      0,2, 'a'.code.toByte(),'b'.code.toByte(),
+                                      0,2, 'c'.code.toByte(),'d'.code.toByte()), b)
     }
 
     @Test fun decodeConfigRoundTrip() {

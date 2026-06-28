@@ -40,11 +40,30 @@ TEST(Protocol, ParserHandlesTwoBackToBackMessages) {
 }
 
 TEST(Protocol, HelloRoundTrip) {
-  auto body = encode_hello(kProtocolVersion, 1920, 1080, 320);
-  uint32_t ver, w, h, d;
-  ASSERT_TRUE(decode_hello(body, ver, w, h, d));
+  auto body = encode_hello(kProtocolVersion, 1920, 1080, 320, "Nexus 10", "abc123");
+  uint32_t ver, w, h, d; std::string name, id;
+  ASSERT_TRUE(decode_hello(body, ver, w, h, d, name, id));
   EXPECT_EQ(ver, kProtocolVersion);
   EXPECT_EQ(w, 1920u); EXPECT_EQ(h, 1080u); EXPECT_EQ(d, 320u);
+  EXPECT_EQ(name, "Nexus 10"); EXPECT_EQ(id, "abc123");
+}
+
+TEST(Protocol, HelloV3RoundTrip) {
+  auto body = encode_hello(3, 1920, 1080, 320, "Nexus 10", "abc123");
+  uint32_t v,w,h,d; std::string name,id;
+  ASSERT_TRUE(decode_hello(body, v,w,h,d, name,id));
+  EXPECT_EQ(v,3u); EXPECT_EQ(w,1920u); EXPECT_EQ(h,1080u); EXPECT_EQ(d,320u);
+  EXPECT_EQ(name,"Nexus 10"); EXPECT_EQ(id,"abc123");
+}
+TEST(Protocol, HelloV2BackCompatNoNameId) {
+  // old 16-byte HELLO (version 2) -> name/id default empty, still decodes.
+  std::vector<unsigned char> b;
+  // reuse the v3 encoder but truncate to the first 16 bytes
+  auto full = encode_hello(2, 1280, 720, 160, "x", "y");
+  b.assign(full.begin(), full.begin()+16);
+  uint32_t v,w,h,d; std::string name,id;
+  ASSERT_TRUE(decode_hello(b, v,w,h,d, name,id));
+  EXPECT_EQ(v,2u); EXPECT_EQ(w,1280u); EXPECT_TRUE(name.empty()); EXPECT_TRUE(id.empty());
 }
 
 TEST(Protocol, ConfigRoundTrip) {

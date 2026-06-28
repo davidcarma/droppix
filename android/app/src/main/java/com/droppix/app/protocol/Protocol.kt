@@ -33,9 +33,13 @@ object Protocol {
         return out.toByteArray()
     }
 
-    fun encodeHello(version: Int, width: Int, height: Int, density: Int): ByteArray {
-        val out = ArrayList<Byte>(16)
+    fun encodeHello(version: Int, width: Int, height: Int, density: Int,
+                    name: String = "", id: String = ""): ByteArray {
+        val out = ArrayList<Byte>()
         putU32(out, version); putU32(out, width); putU32(out, height); putU32(out, density)
+        val n = name.toByteArray(Charsets.UTF_8); val i = id.toByteArray(Charsets.UTF_8)
+        out.add((n.size ushr 8).toByte()); out.add(n.size.toByte()); for (x in n) out.add(x)
+        out.add((i.size ushr 8).toByte()); out.add(i.size.toByte()); for (x in i) out.add(x)
         return out.toByteArray()
     }
 

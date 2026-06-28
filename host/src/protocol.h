@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace droppix {
@@ -10,7 +11,7 @@ enum class MsgType : uint8_t {
 };
 
 // Protocol version sent in HELLO. Bump on any wire-format change.
-constexpr uint32_t kProtocolVersion = 2;
+constexpr uint32_t kProtocolVersion = 3;
 
 // NOTE: the encoder uses x264 repeat-headers, so SPS/PPS travel IN-BAND ahead of
 // each IDR. The CONFIG message's extradata is therefore typically empty and a
@@ -37,10 +38,15 @@ class MessageParser {
 };
 
 // Payload codecs (all integers big-endian).
+// HELLO v3: u32 version, u32 width, u32 height, u32 density, then u16-prefixed
+// name and id strings. decode_hello stays back-compatible with a bare 16-byte
+// v2 body (no name/id), yielding empty name/id in that case.
 std::vector<unsigned char> encode_hello(uint32_t version, uint32_t width,
-                                        uint32_t height, uint32_t density);
+                                        uint32_t height, uint32_t density,
+                                        const std::string& name, const std::string& id);
 bool decode_hello(const std::vector<unsigned char>& body, uint32_t& version,
-                  uint32_t& width, uint32_t& height, uint32_t& density);
+                  uint32_t& width, uint32_t& height, uint32_t& density,
+                  std::string& name, std::string& id);
 
 std::vector<unsigned char> encode_config(uint32_t width, uint32_t height,
                                          uint32_t fps,

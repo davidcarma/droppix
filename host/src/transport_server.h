@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 #include "protocol.h"
 
@@ -12,7 +13,7 @@ class TransportServer {
   uint16_t port() const { return port_; }
   bool accept_client(int timeout_ms);
   bool read_hello(uint32_t& version, uint32_t& w, uint32_t& h, uint32_t& density,
-                  int timeout_ms);
+                  std::string& name, std::string& id, int timeout_ms);
   bool send_config(uint32_t w, uint32_t h, uint32_t fps,
                    const std::vector<unsigned char>& extradata);
   bool send_video(uint64_t pts_us, bool keyframe,
@@ -31,6 +32,7 @@ class TransportServer {
     orientation_handler_ = std::move(h);
   }
   bool connected() const { return client_fd_ >= 0; }
+  std::string peer_ip() const { return peer_ip_; }
   void close_all();
 
  private:
@@ -40,6 +42,7 @@ class TransportServer {
   int listen_fd_ = -1;
   int client_fd_ = -1;
   uint16_t port_ = 0;
+  std::string peer_ip_;
   MessageParser parser_;
   std::function<void(uint8_t, uint16_t, uint16_t)> input_handler_;
   std::function<void(uint8_t)> orientation_handler_;
