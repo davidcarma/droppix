@@ -37,21 +37,21 @@ void StreamController::writeLine(const QString& s) {
 }
 
 namespace {
-// Parses "approve-request id=<id> name=<name> ip=<ip>". The device name may itself
-// contain spaces (e.g. "Nexus 10"), so we locate the markers rather than splitting
-// naively on whitespace: id is between "id=" and " name=", name is between "name="
-// and " ip=", and ip is everything after "ip=".
+// Parses "approve-request id=<id> ip=<ip> name=<name>". The device name may itself
+// contain spaces (e.g. "Nexus 10"), so it is placed last and parsed as everything
+// after " name=" rather than splitting naively on whitespace: id is between "id="
+// and " ip=", ip is between " ip=" and " name=", and name is everything after " name=".
 bool parseApproveRequest(const QString& line, QString& id, QString& name, QString& ip) {
   static const QString kPrefix = QStringLiteral("approve-request ");
   if (!line.startsWith(kPrefix)) return false;
   const QString rest = line.mid(kPrefix.size());
   const int idPos = rest.indexOf(QStringLiteral("id="));
-  const int namePos = rest.indexOf(QStringLiteral(" name="));
   const int ipPos = rest.indexOf(QStringLiteral(" ip="));
-  if (idPos < 0 || namePos < 0 || ipPos < 0) return false;
-  id = rest.mid(idPos + 3, namePos - (idPos + 3));
-  name = rest.mid(namePos + 6, ipPos - (namePos + 6));
-  ip = rest.mid(ipPos + 4);
+  const int namePos = rest.indexOf(QStringLiteral(" name="));
+  if (idPos < 0 || ipPos < 0 || namePos < 0) return false;
+  id = rest.mid(idPos + 3, ipPos - (idPos + 3));
+  ip = rest.mid(ipPos + 4, namePos - (ipPos + 4));
+  name = rest.mid(namePos + 6);
   return true;
 }
 }  // namespace

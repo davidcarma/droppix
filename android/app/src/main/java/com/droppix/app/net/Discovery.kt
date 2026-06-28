@@ -52,7 +52,7 @@ class Discovery(private val ctx: Context) {
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 Log.i(TAG, "service found: ${serviceInfo.serviceName}")
-                enqueueResolve(serviceInfo)
+                mainHandler.post { enqueueResolve(serviceInfo) }
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
@@ -119,21 +119,25 @@ class Discovery(private val ctx: Context) {
         val listener = object : NsdManager.ResolveListener {
             override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                 Log.w(TAG, "resolve failed for ${serviceInfo.serviceName}: error $errorCode")
-                resolveInFlight = false
-                maybeStartNextResolve()
+                mainHandler.post {
+                    resolveInFlight = false
+                    maybeStartNextResolve()
+                }
             }
 
             override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                 val host = serviceInfo.host?.hostAddress
                 val name = serviceInfo.serviceName
                 val port = serviceInfo.port
-                resolveInFlight = false
-                if (host != null) {
-                    mainHandler.post { this@Discovery.onFound?.invoke(name, host, port) }
-                } else {
-                    Log.w(TAG, "resolved $name with null host address")
+                mainHandler.post {
+                    resolveInFlight = false
+                    if (host != null) {
+                        this@Discovery.onFound?.invoke(name, host, port)
+                    } else {
+                        Log.w(TAG, "resolved $name with null host address")
+                    }
+                    maybeStartNextResolve()
                 }
-                maybeStartNextResolve()
             }
         }
 

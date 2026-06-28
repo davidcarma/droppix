@@ -109,7 +109,6 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             val listener = object : StreamListener {
                 override fun onConfig(config: Protocol.Config) {
                     Log.i(TAG, "CONFIG ${config.width}x${config.height}@${config.fps}")
-                    saveLastEndpoint()  // handshake succeeded: remember this endpoint for "reconnect to last"
                     c.sendOrientation(orientationMapper.currentCode())  // sync host to current orientation
                     val s = surface ?: return
                     runOnUiThread { surfaceView.holder.setFixedSize(config.width, config.height) }
@@ -141,11 +140,6 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             }
             client = null
         }
-    }
-
-    private fun saveLastEndpoint() {
-        getSharedPreferences("droppix", MODE_PRIVATE).edit()
-            .putString("last_host", host).putInt("last_port", port).apply()
     }
 
     private fun stopStreaming() {
