@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
+#include <openssl/err.h>
 
 namespace droppix {
 
@@ -38,6 +39,40 @@ bool TransportServer::wait_readable(int fd, int timeout_ms) {
   return ::poll(&pfd, 1, timeout_ms) > 0 && (pfd.revents & POLLIN);
 }
 
+void TransportServer::enable_tls(const std::string& cert, const std::string& key) {
+  cert_ = cert; key_ = key; tls_ = true;
+  ctx_ = SSL_CTX_new(TLS_server_method());
+  if (!ctx_) {
+    std::fprintf(stderr, "tls: SSL_CTX_new failed\n");
+    ERR_print_errors_fp(stderr);
+    return;
+  }
+  if (SSL_CTX_use_certificate_file(ctx_, cert_.c_str(), SSL_FILETYPE_PEM) <= 0) {
+    std::fprintf(stderr, "tls: failed to load cert %s\n", cert_.c_str());
+    ERR_print_errors_fp(stderr);
+  }
+  if (SSL_CTX_use_PrivateKey_file(ctx_, key_.c_str(), SSL_FILETYPE_PEM) <= 0) {
+    std::fprintf(stderr, "tls: failed to load key %s\n", key_.c_str());
+    ERR_print_errors_fp(stderr);
+  }
+}
+
+ssize_t TransportServer::conn_recv(void* buf, size_t n) {
+  return tls_ ? static_cast<ssize_t>(SSL_read(ssl_, buf, static_cast<int>(n)))
+              : ::recv(client_fd_, buf, n, 0);
+}
+
+bool TransportServer::conn_send_all(const unsigned char* p, size_t n) {
+  while (n) {
+    ssize_t w = tls_ ? static_cast<ssize_t>(SSL_write(ssl_, p, static_cast<int>(n)))
+                      : ::send(client_fd_, p, n, MSG_NOSIGNAL);
+    if (w <= 0) return false;
+    p += w;
+    n -= static_cast<size_t>(w);
+  }
+  return true;
+}
+
 bool TransportServer::accept_client(int timeout_ms) {
   close_all();  // drop any prior client so its fd can't leak on a new accept
   if (!wait_readable(listen_fd_, timeout_ms)) return false;
@@ -53,6 +88,24 @@ bool TransportServer::accept_client(int timeout_ms) {
   }
   int yes = 1;
   setsockopt(client_fd_, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
+
+  if (tls_) {
+    ssl_ = SSL_new(ctx_);
+    if (!ssl_) {
+      std::fprintf(stderr, "tls: SSL_new failed\n");
+      ERR_print_errors_fp(stderr);
+      ::close(client_fd_); client_fd_ = -1;
+      return false;
+    }
+    SSL_set_fd(ssl_, client_fd_);
+    if (SSL_accept(ssl_) <= 0) {
+      std::fprintf(stderr, "tls: SSL_accept failed\n");
+      ERR_print_errors_fp(stderr);
+      SSL_free(ssl_); ssl_ = nullptr;
+      ::close(client_fd_); client_fd_ = -1;
+      return false;
+    }
+  }
   return true;
 }
 
@@ -66,7 +119,7 @@ bool TransportServer::read_hello(uint32_t& version, uint32_t& w, uint32_t& h, ui
       return decode_hello(m.body, version, w, h, density, name, id);
     }
     if (!wait_readable(client_fd_, timeout_ms)) return false;
-    ssize_t n = ::recv(client_fd_, buf, sizeof(buf), 0);
+    ssize_t n = conn_recv(buf, sizeof(buf));
     if (n <= 0) { close_all(); return false; }
     parser_.feed(buf, static_cast<size_t>(n));
   }
@@ -74,13 +127,7 @@ bool TransportServer::read_hello(uint32_t& version, uint32_t& w, uint32_t& h, ui
 
 bool TransportServer::send_all(const std::vector<unsigned char>& bytes) {
   if (client_fd_ < 0) return false;
-  size_t off = 0;
-  while (off < bytes.size()) {
-    ssize_t n = ::send(client_fd_, bytes.data() + off, bytes.size() - off,
-                       MSG_NOSIGNAL);
-    if (n <= 0) { close_all(); return false; }
-    off += static_cast<size_t>(n);
-  }
+  if (!conn_send_all(bytes.data(), bytes.size())) { close_all(); return false; }
   return true;
 }
 
@@ -96,9 +143,10 @@ bool TransportServer::send_video(uint64_t pts_us, bool key,
 
 void TransportServer::poll_control() {
   if (client_fd_ < 0) return;
-  if (!wait_readable(client_fd_, 0)) return;
+  bool tls_buffered = tls_ && ssl_ && SSL_pending(ssl_) > 0;
+  if (!tls_buffered && !wait_readable(client_fd_, 0)) return;
   unsigned char buf[1024];
-  ssize_t n = ::recv(client_fd_, buf, sizeof(buf), 0);
+  ssize_t n = conn_recv(buf, sizeof(buf));
   if (n <= 0) { close_all(); return; }
   parser_.feed(buf, static_cast<size_t>(n));
   ParsedMessage m;
@@ -116,12 +164,14 @@ void TransportServer::poll_control() {
 }
 
 void TransportServer::close_all() {
+  if (ssl_) { SSL_shutdown(ssl_); SSL_free(ssl_); ssl_ = nullptr; }
   if (client_fd_ >= 0) { ::close(client_fd_); client_fd_ = -1; }
 }
 
 TransportServer::~TransportServer() {
   close_all();
   if (listen_fd_ >= 0) ::close(listen_fd_);
+  if (ctx_) { SSL_CTX_free(ctx_); ctx_ = nullptr; }
 }
 
 }  // namespace droppix
