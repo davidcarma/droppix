@@ -41,8 +41,16 @@ bool TransportServer::wait_readable(int fd, int timeout_ms) {
 bool TransportServer::accept_client(int timeout_ms) {
   close_all();  // drop any prior client so its fd can't leak on a new accept
   if (!wait_readable(listen_fd_, timeout_ms)) return false;
-  client_fd_ = ::accept(listen_fd_, nullptr, nullptr);
+  sockaddr_in cli{};
+  socklen_t cli_len = sizeof(cli);
+  client_fd_ = ::accept(listen_fd_, (sockaddr*)&cli, &cli_len);
   if (client_fd_ < 0) return false;
+  char buf[INET_ADDRSTRLEN] = {0};
+  if (inet_ntop(AF_INET, &cli.sin_addr, buf, sizeof(buf))) {
+    peer_ip_ = buf;
+  } else {
+    peer_ip_.clear();
+  }
   int yes = 1;
   setsockopt(client_fd_, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
   return true;

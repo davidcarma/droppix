@@ -32,6 +32,7 @@ class TransportServer {
     orientation_handler_ = std::move(h);
   }
   bool connected() const { return client_fd_ >= 0; }
+  std::string peer_ip() const { return peer_ip_; }
   void close_all();
 
  private:
@@ -41,6 +42,7 @@ class TransportServer {
   int listen_fd_ = -1;
   int client_fd_ = -1;
   uint16_t port_ = 0;
+  std::string peer_ip_;
   MessageParser parser_;
   std::function<void(uint8_t, uint16_t, uint16_t)> input_handler_;
   std::function<void(uint8_t)> orientation_handler_;
