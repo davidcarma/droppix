@@ -33,6 +33,7 @@ add_library(droppix_core
   src/monitor_geometry.cpp
   src/input_injector.cpp
   src/mdns_browse.cpp
+  src/audio_streamer.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -100,6 +101,7 @@ add_executable(droppix_tests
   tests/test_input_map.cpp
   tests/test_monitor_geometry.cpp
   tests/test_orientation.cpp
+  tests/test_audio_streamer.cpp
   tests/test_approval.cpp
   tests/test_wake.cpp
   tests/test_mdns_browse.cpp
