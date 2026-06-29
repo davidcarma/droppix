@@ -4,6 +4,7 @@
 namespace droppix {
 
 bool AudioStreamer::start(const std::string& user_prefix) {
+  if (running_) return false;
   const std::string cmd =
       user_prefix +
       "pw-record --raw --target=droppix-audio.monitor "
@@ -19,6 +20,7 @@ bool AudioStreamer::start(const std::string& user_prefix) {
 }
 
 void AudioStreamer::read_from_fd(int fd) {
+  if (running_) return;
   std::lock_guard<std::mutex> lk(stop_mu_);
   fd_ = fd;
   running_ = true;

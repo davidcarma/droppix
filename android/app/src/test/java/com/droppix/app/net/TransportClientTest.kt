@@ -186,11 +186,13 @@ class TransportClientTest {
         }
         val client = TransportClient()
         val tlsTrust = TlsTrust(FakePinStore())
-        val t = thread { client.run("127.0.0.1", port, 1920, 1080, 320, listener, { true }, tlsTrust = tlsTrust) }
+        val clientRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+        val t = thread { client.run("127.0.0.1", port, 1920, 1080, 320, listener, { clientRunning.get() }, tlsTrust = tlsTrust) }
         assertTrue(latch.await(3, TimeUnit.SECONDS))
         assertArrayEquals(pcm, got)
         // stop the client run loop
-        Thread.sleep(50)
+        clientRunning.set(false)
+        t.join(2000)
     }
 
     private fun beU32(x: Int) = byteArrayOf(
