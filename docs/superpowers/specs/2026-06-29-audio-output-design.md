@@ -34,7 +34,7 @@
   - `stop()`: terminate `pw-record`, join the reader thread.
   - On spawn failure / EOF: log once, mark inactive, leave the queue empty (video continues).
 
-- **`host/src/protocol.{h,cpp}`** — add `Audio = 9`. `encode_audio(pcm)`/`decode_audio(body, pcm)` are pass-through (body *is* the interleaved s16le PCM), defined for symmetry and to anchor a shared test vector.
+- **`host/src/protocol.{h,cpp}`** — add `Audio = 9` to `MsgType` (both ends). No codec function is needed: an `AUDIO` message's body *is* the interleaved s16le PCM, sent via the existing `encode_message`. The wire framing is anchored by a shared host↔Kotlin byte vector in tests.
 
 - **`host/src/transport_server.{h,cpp}`** — add `send_audio(const std::vector<unsigned char>& pcm)` = `send_all(encode_message(MsgType::Audio, pcm))`. Same single-threaded send path as video.
 
