@@ -1,6 +1,7 @@
 package com.droppix.app.ui
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,8 +13,10 @@ import android.view.WindowManager
 import android.widget.TextView
 import com.droppix.app.R
 import com.droppix.app.decode.VideoDecoder
+import com.droppix.app.net.CertChangedException
 import com.droppix.app.net.DeviceIdentity
 import com.droppix.app.net.StreamListener
+import com.droppix.app.net.TlsTrust
 import com.droppix.app.net.TransportClient
 import com.droppix.app.protocol.Protocol
 import com.droppix.app.stats.StatsSink
@@ -105,6 +108,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
         running = true
         netThread = thread(name = "droppix-net") {
             val c = TransportClient()
+            val tlsTrust = TlsTrust(this@StreamActivity)
             client = c
             val listener = object : StreamListener {
                 override fun onConfig(config: Protocol.Config) {
@@ -130,8 +134,17 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                     c.run(host, port, 1920, 1080,
                         resources.displayMetrics.densityDpi, listener, { running }, stats,
                         name = DeviceIdentity.displayName(this@StreamActivity),
-                        id = DeviceIdentity.stableId(this@StreamActivity))
+                        id = DeviceIdentity.stableId(this@StreamActivity),
+                        tlsTrust = tlsTrust)
                     Log.i(TAG, "stream session ended")
+                } catch (e: CertChangedException) {
+                    Log.w(TAG, "cert changed for $host: ${e.message}")
+                    running = false
+                    runOnUiThread { showCertChangedDialog(tlsTrust) }
+                } catch (e: IllegalStateException) {
+                    Log.w(TAG, "not paired for $host: ${e.message}")
+                    running = false
+                    runOnUiThread { finish() }
                 } catch (e: Exception) {
                     Log.w(TAG, "connect/stream failed: ${e.message}")
                 }
@@ -140,6 +153,19 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             }
             client = null
         }
+    }
+
+    private fun showCertChangedDialog(tlsTrust: TlsTrust) {
+        AlertDialog.Builder(this)
+            .setTitle("PC identity changed")
+            .setMessage("The PC's security identity changed since you paired. Re-pair?")
+            .setPositiveButton("Re-pair") { _, _ ->
+                tlsTrust.clear(host)
+                finish()
+            }
+            .setNegativeButton("Cancel") { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
     }
 
     private fun stopStreaming() {

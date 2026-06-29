@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <openssl/ssl.h>
 #include "protocol.h"
 
 namespace droppix {
@@ -34,10 +35,15 @@ class TransportServer {
   bool connected() const { return client_fd_ >= 0; }
   std::string peer_ip() const { return peer_ip_; }
   void close_all();
+  // Enables TLS for all subsequent accepted clients. Call BEFORE accept_client.
+  // Sets up a process-lifetime SSL_CTX from the given cert/key (PEM files).
+  void enable_tls(const std::string& cert_path, const std::string& key_path);
 
  private:
   bool send_all(const std::vector<unsigned char>& bytes);
   bool wait_readable(int fd, int timeout_ms);
+  ssize_t conn_recv(void* buf, size_t n);
+  bool conn_send_all(const unsigned char* p, size_t n);
 
   int listen_fd_ = -1;
   int client_fd_ = -1;
@@ -46,5 +52,10 @@ class TransportServer {
   MessageParser parser_;
   std::function<void(uint8_t, uint16_t, uint16_t)> input_handler_;
   std::function<void(uint8_t)> orientation_handler_;
+
+  bool tls_ = false;
+  std::string cert_, key_;
+  SSL_CTX* ctx_ = nullptr;
+  SSL* ssl_ = nullptr;
 };
 }  // namespace droppix

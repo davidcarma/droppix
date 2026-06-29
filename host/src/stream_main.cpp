@@ -33,6 +33,8 @@ int main(int argc, char** argv) {
   int width = 1920, height = 1080, refresh = 60;
   bool test_pattern = false, adb_reverse = false, stats_json = false, touch = false;
   bool approve = false;
+  bool tls = false;
+  std::string cert, key;
   int mx = 0, my = 0, mw = 0, mh = 0, dtw = 0, dth = 0;  // --monitor / --desktop
   int orientation = 0;                                   // --orientation 0/90/180/270
 
@@ -55,6 +57,9 @@ int main(int argc, char** argv) {
     else if (a == "--monitor") { std::sscanf(sval(), "%d,%d,%d,%d", &mx, &my, &mw, &mh); }
     else if (a == "--desktop") { std::sscanf(sval(), "%dx%d", &dtw, &dth); }
     else if (a == "--orientation") orientation = val();
+    else if (a == "--tls") tls = true;
+    else if (a == "--cert") cert = sval();
+    else if (a == "--key") key = sval();
     else { std::fprintf(stderr, "unknown arg: %s\n", a.c_str()); return 2; }
   }
 
@@ -71,6 +76,8 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "listen on %d failed\n", port); return 1;
   }
   std::fprintf(stderr, "listening on port %d\n", tx.port());
+
+  if (tls) tx.enable_tls(cert, key);
 
   if (adb_reverse) {
     std::string cmd = "adb reverse tcp:" + std::to_string(port) +
