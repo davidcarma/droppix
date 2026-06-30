@@ -7,6 +7,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   setWindowTitle("droppix — Settings");
   setModal(true);
 
+  srcTest_ = new QRadioButton("Test pattern (debug)");
+  srcEvdi_ = new QRadioButton("Real monitor (evdi)");
+  srcEvdi_->setChecked(true);
   fps_ = new QSpinBox; fps_->setRange(1, 120); fps_->setValue(30);
   bitrate_ = new QSpinBox; bitrate_->setRange(500, 60000); bitrate_->setSuffix(" kbps"); bitrate_->setValue(8000);
   port_ = new QSpinBox; port_->setRange(1024, 65535); port_->setValue(27000);
@@ -22,6 +25,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   auto* form = new QFormLayout;
   form->setVerticalSpacing(10);
   form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  auto* srcRow = new QHBoxLayout;
+  srcRow->addWidget(srcEvdi_); srcRow->addSpacing(16); srcRow->addWidget(srcTest_); srcRow->addStretch();
+  form->addRow("Source:", srcRow);
   form->addRow("FPS:", fps_);
   form->addRow("Bitrate:", bitrate_);
   form->addRow("Port:", port_);
@@ -30,17 +36,23 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   form->addRow("", autoReverse_);
   form->addRow("", overlay_);
 
+  auto* rememberAuth = new QPushButton("Remember authentication (ask once per login)");
+  connect(rememberAuth, &QPushButton::clicked, this, &SettingsDialog::rememberAuthRequested);
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 
   auto* root = new QVBoxLayout(this);
   root->addLayout(form);
+  root->addWidget(rememberAuth);
   root->addStretch();
   root->addWidget(buttons);
 }
 
 void SettingsDialog::load(const Settings& s) {
+  srcEvdi_->setChecked(s.source == Settings::Source::Evdi);
+  srcTest_->setChecked(s.source == Settings::Source::TestPattern);
   fps_->setValue(s.fps);
   bitrate_->setValue(s.bitrate_kbps);
   port_->setValue(s.port);
@@ -52,6 +64,7 @@ void SettingsDialog::load(const Settings& s) {
 }
 
 void SettingsDialog::store(Settings& s) const {
+  s.source = srcEvdi_->isChecked() ? Settings::Source::Evdi : Settings::Source::TestPattern;
   s.fps = fps_->value();
   s.bitrate_kbps = bitrate_->value();
   s.port = port_->value();

@@ -39,7 +39,6 @@ class MainWindow : public QMainWindow {
 
   // widgets — the advanced options (fps/bitrate/port/refresh/orientation/auto-adb/
   // overlay) now live in SettingsDialog, opened from the Settings menu.
-  QRadioButton* srcTest_; QRadioButton* srcEvdi_;
   QComboBox* resolution_;
   QCheckBox* touch_;
   QCheckBox* audio_;
