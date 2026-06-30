@@ -17,11 +17,11 @@ QWidget { background: #1b1f24; color: #e6e9ef; font-size: 13px; }
 
 QLabel { background: transparent; }
 QLabel#header  { font-size: 20px; font-weight: 700; }
-QLabel#tagline { color: #8a93a3; }
 QLabel#caption { color: #8a93a3; font-size: 12px; }
 QLabel#logo {
-  background: #14b8a6; border-radius: 6px;
-  min-width: 22px; max-width: 22px; min-height: 22px; max-height: 22px;
+  /* logo.png is the full app icon (its own teal rounded square) — no extra
+     background/clip here; just size the label to the rendered pixmap. */
+  min-width: 36px; max-width: 36px; min-height: 36px; max-height: 36px;
 }
 QLabel#statusText  { font-weight: 600; }
 QLabel#statusStats { color: #8a93a3; }
