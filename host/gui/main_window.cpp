@@ -30,23 +30,30 @@ MainWindow::MainWindow(QWidget* parent)
   setWindowIcon(QIcon(":/icon.png"));
   settingsDialog_ = new SettingsDialog(this);   // advanced options live in this dialog
 
-  // --- Menu bar: Settings (Preferences / Remember auth) + Help (About) ---
-  auto* settingsMenu = menuBar()->addMenu("&Settings");
-  settingsMenu->addAction("Preferences…", this, [this]{ settingsDialog_->exec(); });
-  settingsMenu->addAction("Remember authentication", this, &MainWindow::setupAuth);
-  auto* helpMenu = menuBar()->addMenu("&Help");
-  helpMenu->addAction("About droppix…", this, &MainWindow::showAbout);
-
-  // --- Header ---
+  // --- Header: logo + wordmark, with Settings + About icon buttons top-right ---
   auto* logo = new QLabel; logo->setObjectName("logo");
   logo->setPixmap(QPixmap(":/logo.png").scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
   auto* title = new QLabel("droppix"); title->setObjectName("header");
   auto* tagline = new QLabel("use a tablet as a second monitor"); tagline->setObjectName("tagline");
   auto* titleCol = new QVBoxLayout; titleCol->setSpacing(0);
   titleCol->addWidget(title); titleCol->addWidget(tagline);
+
+  auto* settingsBtn = new QToolButton; settingsBtn->setObjectName("iconButton");
+  settingsBtn->setIcon(QIcon(":/ic-settings.png")); settingsBtn->setIconSize(QSize(22, 22));
+  settingsBtn->setAutoRaise(true); settingsBtn->setToolTip("Settings");
+  settingsBtn->setCursor(Qt::PointingHandCursor);
+  connect(settingsBtn, &QToolButton::clicked, this, [this]{ settingsDialog_->exec(); });
+  auto* aboutBtn = new QToolButton; aboutBtn->setObjectName("iconButton");
+  aboutBtn->setIcon(QIcon(":/ic-about.png")); aboutBtn->setIconSize(QSize(22, 22));
+  aboutBtn->setAutoRaise(true); aboutBtn->setToolTip("About droppix");
+  aboutBtn->setCursor(Qt::PointingHandCursor);
+  connect(aboutBtn, &QToolButton::clicked, this, &MainWindow::showAbout);
+  connect(settingsDialog_, &SettingsDialog::rememberAuthRequested, this, &MainWindow::setupAuth);
+
   auto* headerRow = new QHBoxLayout;
   headerRow->addWidget(logo); headerRow->addSpacing(10);
   headerRow->addLayout(titleCol); headerRow->addStretch();
+  headerRow->addWidget(settingsBtn); headerRow->addWidget(aboutBtn);
 
   // --- Profile row ---
   profileBox_ = new QComboBox;
@@ -57,10 +64,7 @@ MainWindow::MainWindow(QWidget* parent)
   profRow->addWidget(new QLabel("Profile:")); profRow->addWidget(profileBox_, 1);
   profRow->addWidget(saveBtn); profRow->addWidget(saveAsBtn); profRow->addWidget(delBtn);
 
-  // --- Settings group ---
-  srcTest_ = new QRadioButton("Test pattern");
-  srcEvdi_ = new QRadioButton("Real monitor (evdi)");
-  srcEvdi_->setChecked(true);
+  // --- Stream group (source/test-pattern moved to the Settings dialog) ---
   resolution_ = new QComboBox;
   resolution_->addItems({"640x480", "800x600", "960x540", "1024x576", "1024x640",
                          "1280x720", "1920x1080", "2560x1440",
@@ -70,9 +74,6 @@ MainWindow::MainWindow(QWidget* parent)
   audio_ = new QCheckBox("Stream audio to tablet (route an app's output to 'droppix-audio')");
 
   auto* form = new QFormLayout;
-  auto* srcRow = new QHBoxLayout;
-  srcRow->addWidget(srcTest_); srcRow->addSpacing(18); srcRow->addWidget(srcEvdi_); srcRow->addStretch();
-  form->addRow("Source:", srcRow);
   form->addRow("Resolution:", resolution_);
   form->addRow("", touch_);
   form->addRow("", audio_);
@@ -242,12 +243,11 @@ void MainWindow::onConnectToSelectedDevice() {
 
 Settings MainWindow::collectSettings() const {
   Settings s;
-  s.source = srcEvdi_->isChecked() ? Settings::Source::Evdi : Settings::Source::TestPattern;
   const QStringList wh = resolution_->currentText().split('x');
   s.width = wh.value(0).toInt(); s.height = wh.value(1).toInt();
   s.touch = touch_->isChecked();
   s.audio = audio_->isChecked();
-  settingsDialog_->store(s);   // fps/bitrate/port/refresh/orientation/auto-adb/overlay
+  settingsDialog_->store(s);   // source + fps/bitrate/port/refresh/orientation/auto-adb/overlay
   s.tls = true;
   s.certPath = cert_.certPath().toStdString();
   s.keyPath = cert_.keyPath().toStdString();
@@ -255,8 +255,6 @@ Settings MainWindow::collectSettings() const {
 }
 
 void MainWindow::applySettings(const Settings& s) {
-  srcEvdi_->setChecked(s.source == Settings::Source::Evdi);
-  srcTest_->setChecked(s.source == Settings::Source::TestPattern);
   resolution_->setCurrentText(QString("%1x%2").arg(s.width).arg(s.height));
   touch_->setChecked(s.touch);
   audio_->setChecked(s.audio);

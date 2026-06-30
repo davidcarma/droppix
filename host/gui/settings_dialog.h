@@ -5,6 +5,7 @@
 class QSpinBox;
 class QComboBox;
 class QCheckBox;
+class QRadioButton;
 
 namespace droppix {
 
@@ -19,7 +20,12 @@ class SettingsDialog : public QDialog {
   void load(const Settings& s);    // widgets <- settings
   void store(Settings& s) const;   // widgets -> settings
 
+ signals:
+  void rememberAuthRequested();    // user clicked "Remember authentication"
+
  private:
+  QRadioButton* srcTest_;
+  QRadioButton* srcEvdi_;
   QSpinBox* fps_;
   QSpinBox* bitrate_;
   QSpinBox* port_;
