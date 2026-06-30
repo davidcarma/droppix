@@ -119,18 +119,20 @@ bool decode_video(const std::vector<unsigned char>& b,
   return true;
 }
 
-std::vector<unsigned char> encode_input(uint8_t action, uint16_t x_norm, uint16_t y_norm) {
+std::vector<unsigned char> encode_input(uint8_t action, uint16_t x_norm, uint16_t y_norm,
+                                        uint16_t pressure) {
   std::vector<unsigned char> b;
   b.push_back(action);
-  put_u16(b, x_norm); put_u16(b, y_norm);
+  put_u16(b, x_norm); put_u16(b, y_norm); put_u16(b, pressure);
   return b;
 }
 bool decode_input(const std::vector<unsigned char>& b,
-                  uint8_t& action, uint16_t& x_norm, uint16_t& y_norm) {
-  if (b.size() != 5) return false;
+                  uint8_t& action, uint16_t& x_norm, uint16_t& y_norm, uint16_t& pressure) {
+  if (b.size() != 5 && b.size() != 7) return false;
   action = b[0];
   x_norm = get_u16(b.data() + 1);
   y_norm = get_u16(b.data() + 3);
+  pressure = (b.size() == 7) ? get_u16(b.data() + 5) : 1023;  // 5-byte (old client) => full
   return true;
 }
 

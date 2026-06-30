@@ -106,23 +106,29 @@ TEST(Protocol, ParserResyncsPastManyZeroLengthWordsWithoutRecursion) {
 }
 
 TEST(Protocol, InputRoundTrip) {
-  auto body = encode_input(0, 30000, 40000);
-  uint8_t a; uint16_t x, y;
-  ASSERT_TRUE(decode_input(body, a, x, y));
-  EXPECT_EQ(a, 0); EXPECT_EQ(x, 30000); EXPECT_EQ(y, 40000);
+  auto body = encode_input(0, 30000, 40000, 700);
+  uint8_t a; uint16_t x, y, p;
+  ASSERT_TRUE(decode_input(body, a, x, y, p));
+  EXPECT_EQ(a, 0); EXPECT_EQ(x, 30000); EXPECT_EQ(y, 40000); EXPECT_EQ(p, 700);
+}
+TEST(Protocol, InputLegacy5ByteDecodesFullPressure) {
+  uint8_t a; uint16_t x, y, p;
+  ASSERT_TRUE(decode_input({0, 0x75, 0x30, 0x9C, 0x40}, a, x, y, p));  // 5-byte (old client)
+  EXPECT_EQ(x, 30000); EXPECT_EQ(y, 40000); EXPECT_EQ(p, 1023);
 }
 TEST(Protocol, InputWireLayout) {
-  auto m = encode_message(MsgType::Input, encode_input(2, 0x0102, 0x0304));
-  // len = 1(type)+5(body)=6; type=7; body = 02 0102 0304 (big-endian)
-  ASSERT_EQ(m.size(), 4u + 6u);
-  EXPECT_EQ(m[3], 6); EXPECT_EQ(m[4], 7);
+  auto m = encode_message(MsgType::Input, encode_input(2, 0x0102, 0x0304, 0x0506));
+  // len = 1(type)+7(body)=8; type=7; body = 02 0102 0304 0506 (big-endian)
+  ASSERT_EQ(m.size(), 4u + 8u);
+  EXPECT_EQ(m[3], 8); EXPECT_EQ(m[4], 7);
   EXPECT_EQ(m[5], 0x02);
   EXPECT_EQ(m[6], 0x01); EXPECT_EQ(m[7], 0x02);
   EXPECT_EQ(m[8], 0x03); EXPECT_EQ(m[9], 0x04);
+  EXPECT_EQ(m[10], 0x05); EXPECT_EQ(m[11], 0x06);
 }
 TEST(Protocol, InputTooShortInvalid) {
-  uint8_t a; uint16_t x, y;
-  EXPECT_FALSE(decode_input({0, 0}, a, x, y));
+  uint8_t a; uint16_t x, y, p;
+  EXPECT_FALSE(decode_input({0, 0}, a, x, y, p));
 }
 
 TEST(Protocol, OrientationRoundTrip) {

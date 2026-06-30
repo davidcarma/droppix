@@ -162,8 +162,8 @@ void TransportServer::poll_control() {
     if (m.type == MsgType::Ping) {
       send_all(encode_message(MsgType::Pong, m.body));
     } else if (m.type == MsgType::Input && input_handler_) {
-      uint8_t a; uint16_t x, y;
-      if (decode_input(m.body, a, x, y)) input_handler_(a, x, y);
+      uint8_t a; uint16_t x, y, p;
+      if (decode_input(m.body, a, x, y, p)) input_handler_(a, x, y, p);
     } else if (m.type == MsgType::Orientation && orientation_handler_) {
       uint8_t code;
       if (decode_orientation(m.body, code)) orientation_handler_(code);
