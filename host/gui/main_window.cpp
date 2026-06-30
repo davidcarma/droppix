@@ -26,17 +26,14 @@ MainWindow::MainWindow(QWidget* parent)
       cert_(configDir()) {
   streamBin_ = (QCoreApplication::applicationDirPath() + "/droppix_stream").toStdString();
   const bool certsReady = cert_.ensure();
-  setWindowTitle("droppix");
+  setWindowTitle("Droppix");
   setWindowIcon(QIcon(":/icon.png"));
   settingsDialog_ = new SettingsDialog(this);   // advanced options live in this dialog
 
   // --- Header: logo + wordmark, with Settings + About icon buttons top-right ---
   auto* logo = new QLabel; logo->setObjectName("logo");
-  logo->setPixmap(QPixmap(":/logo.png").scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-  auto* title = new QLabel("droppix"); title->setObjectName("header");
-  auto* tagline = new QLabel("use a tablet as a second monitor"); tagline->setObjectName("tagline");
-  auto* titleCol = new QVBoxLayout; titleCol->setSpacing(0);
-  titleCol->addWidget(title); titleCol->addWidget(tagline);
+  logo->setPixmap(QPixmap(":/logo.png").scaled(36, 36, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+  auto* title = new QLabel("Droppix"); title->setObjectName("header");
 
   auto* settingsBtn = new QToolButton; settingsBtn->setObjectName("iconButton");
   settingsBtn->setIcon(QIcon(":/ic-settings.png")); settingsBtn->setIconSize(QSize(22, 22));
@@ -45,7 +42,7 @@ MainWindow::MainWindow(QWidget* parent)
   connect(settingsBtn, &QToolButton::clicked, this, [this]{ settingsDialog_->exec(); });
   auto* aboutBtn = new QToolButton; aboutBtn->setObjectName("iconButton");
   aboutBtn->setIcon(QIcon(":/ic-about.png")); aboutBtn->setIconSize(QSize(22, 22));
-  aboutBtn->setAutoRaise(true); aboutBtn->setToolTip("About droppix");
+  aboutBtn->setAutoRaise(true); aboutBtn->setToolTip("About Droppix");
   aboutBtn->setCursor(Qt::PointingHandCursor);
   connect(aboutBtn, &QToolButton::clicked, this, &MainWindow::showAbout);
   connect(settingsDialog_, &SettingsDialog::rememberAuthRequested, this, &MainWindow::setupAuth);
@@ -58,7 +55,7 @@ MainWindow::MainWindow(QWidget* parent)
 
   auto* headerRow = new QHBoxLayout;
   headerRow->addWidget(logo); headerRow->addSpacing(10);
-  headerRow->addLayout(titleCol); headerRow->addStretch();
+  headerRow->addWidget(title); headerRow->addStretch();
   headerRow->addWidget(settingsBtn); headerRow->addWidget(aboutBtn);
 
   // --- Profile row ---
@@ -307,13 +304,13 @@ void MainWindow::setupAuth() {
 void MainWindow::showAbout() {
   const QString repo = "https://github.com/Spinjitsudoom/droppix";
   QDialog dlg(this);
-  dlg.setWindowTitle("About droppix");
+  dlg.setWindowTitle("About Droppix");
   auto* icon = new QLabel;
   icon->setPixmap(QPixmap(":/icon.png").scaled(72, 72, Qt::KeepAspectRatio, Qt::SmoothTransformation));
   icon->setAlignment(Qt::AlignTop);
   auto* text = new QLabel(QString(
-      "<b style='font-size:16px'>droppix</b>&nbsp; v0.1<br>"
-      "<span style='color:#9aa5b1'>use a tablet as a second monitor</span><br><br>"
+      "<b style='font-size:16px'>Droppix</b>&nbsp; v0.1<br>"
+      "<span style='color:#9aa5b1'>extended display, touch, stylus &amp; audio over USB or WiFi</span><br><br>"
       "Source &amp; releases:<br><a href='%1'>%1</a><br><br>"
       "Built with Qt · evdi · x264 · PipeWire · MediaCodec<br>"
       "Licensed under the <b>MIT License</b>.").arg(repo));
