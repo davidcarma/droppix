@@ -69,10 +69,10 @@ class ProtocolTest {
     private fun beU64(x: Long) = ByteArray(8) { i -> (x ushr (56 - i * 8)).toByte() }
 
     @Test fun encodeInputMatchesHostWireFormat() {
-        // action=2, x=0x0102, y=0x0304 ; encodeMessage adds [00 00 00 06][07]
-        val m = Protocol.encodeMessage(MsgType.INPUT, Protocol.encodeInput(2, 0x0102, 0x0304))
+        // action=2, x=0x0102, y=0x0304, pressure=0x0506 ; encodeMessage adds [00 00 00 08][07]
+        val m = Protocol.encodeMessage(MsgType.INPUT, Protocol.encodeInput(2, 0x0102, 0x0304, 0x0506))
         assertArrayEquals(
-            byteArrayOf(0, 0, 0, 6, 7, 0x02, 0x01, 0x02, 0x03, 0x04), m)
+            byteArrayOf(0, 0, 0, 8, 7, 0x02, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06), m)
     }
 
     @Test fun encodeOrientationMatchesHostWireFormat() {

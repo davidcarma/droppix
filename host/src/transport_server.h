@@ -26,7 +26,7 @@ class TransportServer {
   // INVARIANT: if the handler captures an object by reference, the caller MUST
   // clear it (set_input_handler(nullptr)) before that object is destroyed —
   // TransportServer outlives a single streaming session.
-  void set_input_handler(std::function<void(uint8_t, uint16_t, uint16_t)> h) {
+  void set_input_handler(std::function<void(uint8_t, uint16_t, uint16_t, uint16_t)> h) {
     input_handler_ = std::move(h);
   }
   // Called for each ORIENTATION message during poll_control (code: 0/1/2/3 =>
@@ -52,7 +52,7 @@ class TransportServer {
   uint16_t port_ = 0;
   std::string peer_ip_;
   MessageParser parser_;
-  std::function<void(uint8_t, uint16_t, uint16_t)> input_handler_;
+  std::function<void(uint8_t, uint16_t, uint16_t, uint16_t)> input_handler_;
   std::function<void(uint8_t)> orientation_handler_;
 
   bool tls_ = false;

@@ -98,8 +98,8 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
         super.onResume()
         surfaceView.setSurfaceListener(this)  // fires onSurfaceReady if already valid
         surfaceView.setTouchListener(object : DisplaySurfaceView.TouchListener {
-            override fun onTouch(action: Int, xNorm: Int, yNorm: Int) {
-                client?.sendInput(action, xNorm, yNorm)
+            override fun onTouch(action: Int, xNorm: Int, yNorm: Int, pressure: Int) {
+                client?.sendInput(action, xNorm, yNorm, pressure)
             }
         })
         uiHandler.post(overlayTick)

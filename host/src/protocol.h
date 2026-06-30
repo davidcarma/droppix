@@ -61,10 +61,12 @@ bool decode_video(const std::vector<unsigned char>& body,
                   uint64_t& pts_us, bool& keyframe,
                   std::vector<unsigned char>& nal);
 
-// INPUT (app->host): u8 action (0=down,1=move,2=up), u16 x_norm, u16 y_norm.
-std::vector<unsigned char> encode_input(uint8_t action, uint16_t x_norm, uint16_t y_norm);
+// INPUT (app->host): u8 action (0=down,1=move,2=up), u16 x_norm, u16 y_norm, u16 pressure
+// (0..1023; legacy 5-byte bodies without pressure decode as full pressure = 1023).
+std::vector<unsigned char> encode_input(uint8_t action, uint16_t x_norm, uint16_t y_norm,
+                                        uint16_t pressure);
 bool decode_input(const std::vector<unsigned char>& body,
-                  uint8_t& action, uint16_t& x_norm, uint16_t& y_norm);
+                  uint8_t& action, uint16_t& x_norm, uint16_t& y_norm, uint16_t& pressure);
 
 // ORIENTATION (app->host): u8 code (0=0°, 1=90°, 2=180°, 3=270°).
 std::vector<unsigned char> encode_orientation(uint8_t code);

@@ -153,8 +153,8 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   tx_.set_input_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
   if (cfg_.touch) {
     if (injector.open()) {
-      tx_.set_input_handler([&injector](uint8_t a, uint16_t x, uint16_t y) {
-        injector.inject(a, x, y);
+      tx_.set_input_handler([&injector](uint8_t a, uint16_t x, uint16_t y, uint16_t p) {
+        injector.inject(a, x, y, p);
       });
       if (have_output) {
         std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",

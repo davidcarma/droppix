@@ -16,7 +16,7 @@ class DisplaySurfaceView @JvmOverloads constructor(
     }
 
     // Single-pointer touch, normalized to 0..65535 of the view, sent to the host.
-    interface TouchListener { fun onTouch(action: Int, xNorm: Int, yNorm: Int) }
+    interface TouchListener { fun onTouch(action: Int, xNorm: Int, yNorm: Int, pressure: Int) }
 
     private var listener: SurfaceListener? = null
     private var touchListener: TouchListener? = null
@@ -45,7 +45,9 @@ class DisplaySurfaceView @JvmOverloads constructor(
         val w = width.coerceAtLeast(1); val h = height.coerceAtLeast(1)
         val xn = ((event.x / w).coerceIn(0f, 1f) * 65535f).toInt()
         val yn = ((event.y / h).coerceIn(0f, 1f) * 65535f).toInt()
-        l.onTouch(action, xn, yn)
+        // Touch pressure (0..1023). Capacitive screens report an approximation; forward it.
+        val pn = (event.pressure.coerceIn(0f, 1f) * 1023f).toInt()
+        l.onTouch(action, xn, yn, pn)
         return true
     }
 

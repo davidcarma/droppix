@@ -43,12 +43,13 @@ object Protocol {
         return out.toByteArray()
     }
 
-    // INPUT body: u8 action (0=down,1=move,2=up), u16 x_norm, u16 y_norm (big-endian).
-    fun encodeInput(action: Int, xNorm: Int, yNorm: Int): ByteArray {
-        val out = ArrayList<Byte>(5)
+    // INPUT body: u8 action (0=down,1=move,2=up), u16 x_norm, u16 y_norm, u16 pressure (big-endian).
+    fun encodeInput(action: Int, xNorm: Int, yNorm: Int, pressure: Int): ByteArray {
+        val out = ArrayList<Byte>(7)
         out.add(action.toByte())
         out.add((xNorm ushr 8).toByte()); out.add(xNorm.toByte())
         out.add((yNorm ushr 8).toByte()); out.add(yNorm.toByte())
+        out.add((pressure ushr 8).toByte()); out.add(pressure.toByte())
         return out.toByteArray()
     }
 

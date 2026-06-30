@@ -9,7 +9,7 @@ class InputInjector {
   ~InputInjector();
   bool open();  // needs root /dev/uinput
   bool ok() const { return fd_ >= 0; }
-  void inject(uint8_t action, uint16_t x_norm, uint16_t y_norm);
+  void inject(uint8_t action, uint16_t x_norm, uint16_t y_norm, uint16_t pressure);
  private:
   int fd_ = -1;
 };
