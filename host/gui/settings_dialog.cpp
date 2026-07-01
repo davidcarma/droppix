@@ -24,9 +24,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   orientation_->addItem("Portrait (90°)", 90);
   orientation_->addItem("Inverted (180°)", 180);
   orientation_->addItem("Portrait flipped (270°)", 270);
-  touch_ = new QCheckBox("Touch input (evdi only — tap/drag the cursor)");
-  audio_ = new QCheckBox("Stream audio to tablet (route an app's output to 'droppix-audio')");
-  overlay_ = new QCheckBox("Show performance overlay on the tablet (RTT / fps / decode)");
+  touch_ = new QCheckBox("Touch");
+  audio_ = new QCheckBox("Audio");
+  overlay_ = new QCheckBox("Performance Overlay");
   connect(overlay_, &QCheckBox::toggled, this, &SettingsDialog::overlayToggled);  // live toggle
 
   auto* form = new QFormLayout;
@@ -40,6 +40,10 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   form->addRow("Bitrate:", bitrate_);
   form->addRow("Port:", port_);
   form->addRow("Refresh (Hz):", refresh_);
+  // Bitrate/Port are hidden from the UI but kept functional — they still carry
+  // their default (8000 kbps / 27000) or a profile's persisted value.
+  form->setRowVisible(bitrate_, false);
+  form->setRowVisible(port_, false);
   form->addRow("Orientation (default):", orientation_);
   form->addRow("", touch_);
   form->addRow("", audio_);
