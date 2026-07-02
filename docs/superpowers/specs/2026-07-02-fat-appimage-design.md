@@ -1,13 +1,25 @@
-# Fat AppImage (bundled dependencies) with evdi-capable root streamer — design
+# droppix AppImage (bundled app dependencies) with evdi-capable root streamer — design
 
 **Date:** 2026-07-02
-**Status:** approved
+**Status:** built & verified
 
 ## Goal
 
-Ship a self-contained droppix AppImage that bundles Qt6 + codec/TLS/evdi libraries and
-**both** binaries, and make the evdi extended-monitor (root) path work from the AppImage.
-Flatpak is out of scope (its sandbox can't run the root/uinput/evdi/pkexec core).
+Ship a droppix AppImage that bundles **both** binaries plus the app-specific codec/streaming
+libraries, and make the evdi extended-monitor (root) path work from the AppImage. Flatpak is
+out of scope (its sandbox can't run the root/uinput/evdi/pkexec core).
+
+## Qt is NOT bundled (important finding)
+
+The original plan bundled Qt6 too. In practice that **crashes**: the bundled Qt xcb platform
+plugin segfaults during `dlopen` because the bundled glib/xcb stack double-loads against the
+host's (a hard ABI conflict on Fedora 44 / Qt 6.11; the canonical excludelist prune and
+dropping the whole display stack did not fix it). The resolution is architectural, not a
+workaround: **droppix requires KDE Plasma at runtime** (it drives `kscreen-doctor`/`qdbus`),
+so every host that can run it already ships a matching Qt6 + glib/xcb/GL. Bundling Qt is both
+the cause of the crash and redundant. So the AppImage uses **host Qt6** and bundles only the
+app libs a host may lack at the right version: ffmpeg (avcodec/avutil/swscale + codec deps),
+x264, OpenSSL, libevdi.
 
 ## Constraints (why this shape)
 
@@ -44,19 +56,23 @@ Add `resolveStreamBin()` (replaces the fixed `applicationDirPath()/droppix_strea
 so both paths use the stable binary. `setupAuth`'s polkit rule already matches `streamBin_`
 (with the /home↔/var/home alias), now a stable path — permanent auth works.
 
-### 2. Packaging — `packaging/appimage/build-appimage.sh` (rewrite: fat)
+### 2. Packaging — `packaging/appimage/build-appimage.sh`
 
-- Ensure `patchelf` is present in the `droppix-dev` distrobox (`sudo dnf install -y patchelf`).
-- Fetch `linuxdeploy` + `linuxdeploy-plugin-qt` (cache under `~/.cache/droppix-appimage/`) if
-  missing (network).
-- In the distrobox (has Qt6 + qmake6 + patchelf), run linuxdeploy to POPULATE the AppDir:
-  `linuxdeploy --appdir <AppDir> -e droppix_gui -e droppix_stream -i <icon> -d <desktop>
-   --plugin qt` with `QMAKE=/usr/bin/qmake6`. This bundles Qt libs + platform/wayland/tls/
-  imageformat plugins + all ldd deps for both binaries and sets `$ORIGIN`-relative RPATHs.
-- On the host (has `file`), run `appimagetool <AppDir> <out>.AppImage` (FUSE-free squashfs).
-- AppRun (linuxdeploy default) launches `droppix_gui`. Keep the desktop/icon from `host/icons`.
+- Ensure `patchelf` in the `droppix-dev` distrobox; fetch `linuxdeploy` (cache under
+  `~/.cache/droppix-appimage/`).
+- In the distrobox (has patchelf), `linuxdeploy --appdir AppDir -e droppix_gui -e
+  droppix_stream -i <icon> -d <desktop>` bundles all ldd deps for both binaries and sets
+  `$ORIGIN/../lib` RPATHs. (No `--plugin qt` — we do not bundle Qt.)
+- **Prune** the host-provided stack from `AppDir/usr/lib`: `libQt6*`, `usr/plugins`,
+  `usr/bin/qt.conf`, and the display/GPU/glib/system libs (glib, gobject, gio, cairo,
+  pango, harfbuzz, freetype, fontconfig, xcb, X11, GL/EGL, wayland, drm, va, xkbcommon,
+  systemd/udev/selinux, expat, brotli, z, icu, ...). What remains: ffmpeg + codec deps,
+  x264, OpenSSL, libevdi.
+- On the host (has `file`), `appimagetool [--runtime-file <cached>] AppDir <out>.AppImage`.
+  The type2 runtime is cached at `~/.cache/droppix-appimage/runtime-x86_64` (extractable from
+  any prior AppImage via `--appimage-offset` + `head -c` when the GitHub download is blocked).
 
-The build runs from the host and shells into the distrobox for the linuxdeploy step.
+The script runs on the host and shells into the distrobox for the linuxdeploy step.
 
 ### 3. Docs — README "Requirements"
 
