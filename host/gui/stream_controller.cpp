@@ -63,6 +63,11 @@ void StreamController::onReadyRead() {
     QString line = QString::fromUtf8(buf_.left(nl)).trimmed();
     buf_.remove(0, nl + 1);
     if (line.isEmpty()) continue;
+    static const QString kConnecting = QStringLiteral("client-connecting ip=");
+    if (line.startsWith(kConnecting)) {
+      emit connecting(line.mid(kConnecting.size()).trimmed());
+      continue;
+    }
     QString id, name, ip;
     if (parseApproveRequest(line, id, name, ip)) {
       emit approvalRequested(id, name, ip);

@@ -30,11 +30,30 @@ void ApprovedStore::approve(const QString& id) {
   }
 }
 
+QStringList ApprovedStore::ids() const {
+  QStringList out(ids_.begin(), ids_.end());
+  out.sort();
+  return out;
+}
+
+void ApprovedStore::remove(const QString& id) {
+  if (ids_.remove(id)) rewrite();
+}
+
 void ApprovedStore::clear() {
   ids_.clear();
   QFile f(path());
   if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     f.close();
+  }
+}
+
+void ApprovedStore::rewrite() const {
+  QDir().mkpath(dir_);
+  QFile f(path());
+  if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    QTextStream out(&f);
+    for (const auto& id : ids_) out << id << "\n";
   }
 }
 }  // namespace droppix

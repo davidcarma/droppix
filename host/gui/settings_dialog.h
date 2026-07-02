@@ -22,6 +22,7 @@ class SettingsDialog : public QDialog {
 
  signals:
   void rememberAuthRequested();    // user clicked "Remember authentication"
+  void manageDevicesRequested();   // user clicked "Manage remembered devices"
   void overlayToggled(bool show);  // perf-overlay checkbox flipped (apply live if streaming)
 
  private:

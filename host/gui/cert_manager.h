@@ -12,6 +12,10 @@ class CertManager {
   // Returns true if both files exist afterward (whether freshly generated or pre-existing).
   bool ensure();
 
+  // Deletes any existing cert/key and generates a fresh pair, so the derived pairing
+  // code changes. Resets the cached code. Called once per launch for a per-restart code.
+  bool regenerate();
+
   QString certPath() const;  // <dir>/cert.pem
   QString keyPath() const;   // <dir>/key.pem
 

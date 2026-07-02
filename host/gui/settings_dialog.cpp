@@ -101,6 +101,8 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
   auto* rememberAuth = new QPushButton("Remember authentication (never ask again)");
   connect(rememberAuth, &QPushButton::clicked, this, &SettingsDialog::rememberAuthRequested);
+  auto* manageDevices = new QPushButton("Manage remembered devices…");
+  connect(manageDevices, &QPushButton::clicked, this, &SettingsDialog::manageDevicesRequested);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::accept);
@@ -114,6 +116,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   root->addWidget(minimizeOnClose_);
   root->addSpacing(6);
   root->addWidget(rememberAuth);
+  root->addWidget(manageDevices);
   root->addStretch();
   root->addWidget(buttons);
 }

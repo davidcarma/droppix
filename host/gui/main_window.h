@@ -15,7 +15,7 @@
 
 class QComboBox; class QSpinBox; class QCheckBox; class QPushButton;
 class QLabel; class QPlainTextEdit; class QRadioButton; class QTimer;
-class QListWidget; class QGroupBox; class QSystemTrayIcon;
+class QListWidget; class QGroupBox; class QSystemTrayIcon; class QDialog;
 
 namespace droppix {
 class SettingsDialog;
@@ -42,6 +42,9 @@ class MainWindow : public QMainWindow {
   void refreshAdvertising();    // (re)publish _droppix._tcp for the current port; idempotent
   bool minimizeToTrayRequested() const;   // reads the <config>/minimize_on_close marker
   void setupTray();             // create the tray icon + Show/Quit menu (if a tray exists)
+  void showPairingPopup(const QString& ip);   // pop the pairing code when a device connects
+  void hidePairingPopup();
+  void manageDevices();         // dialog to view/forget remembered (approved) devices
 
   // widgets — ALL stream options (source/resolution/touch/audio/fps/bitrate/port/
   // refresh/orientation/auto-adb/overlay) now live in SettingsDialog (gear icon).
@@ -49,8 +52,11 @@ class MainWindow : public QMainWindow {
   QComboBox* profileBox_; QPushButton* startBtn_;
   QLabel* statusDot_;
   QLabel* deviceLabel_; QLabel* streamLabel_; QLabel* statsLabel_;
-  QLabel* pairingLabel_;
   QGroupBox* devicesBox_;
+  QDialog* pairingPopup_ = nullptr;   // non-modal "Pairing code: NNNNNN" shown on connect
+  QLabel* pairingInfo_ = nullptr;
+  QLabel* pairingCodeLabel_ = nullptr;
+  QTimer* pairingHideTimer_ = nullptr;
   QListWidget* devicesList_;
   QPushButton* connectBtn_;
 
