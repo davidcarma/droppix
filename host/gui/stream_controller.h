@@ -18,6 +18,7 @@ class StreamController : public QObject {
   void logLine(const QString& line);
   void runningChanged(bool running);
   void approvalRequested(QString id, QString name, QString ip);
+  void connecting(QString ip);   // a client's socket/TLS was accepted (pre-HELLO)
  private:
   void onReadyRead();
   QProcess proc_;

@@ -101,6 +101,9 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   std::fprintf(stderr, "source %dx%d\n", w, h);
 
   if (!tx_.accept_client(60000)) { std::fprintf(stderr, "no client\n"); return false; }
+  // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
+  // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
+  std::fprintf(stderr, "client-connecting ip=%s\n", tx_.peer_ip().c_str());
   uint32_t cver, cw, ch, density; std::string cname, cid;
   if (!tx_.read_hello(cver, cw, ch, density, cname, cid, 10000)) { std::fprintf(stderr, "no HELLO\n"); return false; }
   std::fprintf(stderr, "client HELLO v%u %ux%u name=%s id=%s\n", cver, cw, ch, cname.c_str(), cid.c_str());

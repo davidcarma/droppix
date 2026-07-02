@@ -28,6 +28,14 @@ bool CertManager::ensure() {
   return QFileInfo::exists(cert) && QFileInfo::exists(key);
 }
 
+bool CertManager::regenerate() {
+  QFile::remove(certPath());
+  QFile::remove(keyPath());
+  codeComputed_ = false;   // force pairingCode() to recompute from the new cert
+  code_.clear();
+  return ensure();
+}
+
 QString CertManager::pairingCode() const {
   if (codeComputed_) return code_;
   codeComputed_ = true;

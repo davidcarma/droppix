@@ -11,6 +11,7 @@
 #include <QUdpSocket>
 #include <QHostAddress>
 #include <QDateTime>
+#include <QTimer>
 #include "wake.h"
 
 namespace droppix {
@@ -25,7 +26,7 @@ MainWindow::MainWindow(QWidget* parent)
       approved_(configDir()),
       cert_(configDir()) {
   streamBin_ = (QCoreApplication::applicationDirPath() + "/droppix_stream").toStdString();
-  const bool certsReady = cert_.ensure();
+  cert_.regenerate();   // fresh cert => new pairing code every launch (per-restart rotation)
   setWindowTitle("Droppix");
   setWindowIcon(QIcon(":/icon.png"));
   settingsDialog_ = new SettingsDialog(this);   // advanced options live in this dialog
@@ -46,6 +47,7 @@ MainWindow::MainWindow(QWidget* parent)
   aboutBtn->setCursor(Qt::PointingHandCursor);
   connect(aboutBtn, &QToolButton::clicked, this, &MainWindow::showAbout);
   connect(settingsDialog_, &SettingsDialog::rememberAuthRequested, this, &MainWindow::setupAuth);
+  connect(settingsDialog_, &SettingsDialog::manageDevicesRequested, this, &MainWindow::manageDevices);
   // Perf-overlay checkbox applies live: if a stream is running, push "overlay N" to the
   // streamer's stdin so the tablet shows/hides it without a restart. store()/load() still
   // persist the setting for the next launch.
@@ -81,10 +83,6 @@ MainWindow::MainWindow(QWidget* parent)
   statusRow->addWidget(statsLabel_);
   deviceLabel_ = new QLabel; deviceLabel_->setObjectName("caption");
   deviceLabel_->hide();   // shown only to surface an adb hint (unauthorized / not found)
-  pairingLabel_ = new QLabel(certsReady
-      ? "Pairing code: " + cert_.pairingCode()
-      : "Pairing code: unavailable");
-  pairingLabel_->setObjectName("caption");
 
   // --- Start/Stop + log ---
   startBtn_ = new QPushButton("▶  Start streaming");
@@ -108,7 +106,6 @@ MainWindow::MainWindow(QWidget* parent)
   root->addLayout(profRow);
   root->addLayout(statusRow);
   root->addWidget(deviceLabel_);
-  root->addWidget(pairingLabel_);
   root->addWidget(startBtn_);
   root->addWidget(devicesBox_, 1);   // the client list now fills the space the log used to
   auto* central = new QWidget; central->setLayout(root);
@@ -152,10 +149,14 @@ MainWindow::MainWindow(QWidget* parent)
     // Keep advertising this PC whether idle or streaming so tablets can discover it
     // either way (detection is bidirectional). On stream start, refresh in case the
     // configured port changed; never stop on stream end — only at app close.
-    if (r) refreshAdvertising();
+    if (r) refreshAdvertising(); else hidePairingPopup();
   });
+  // A device connected (or is probing to pair) -> show the pairing code right then.
+  connect(&controller_, &StreamController::connecting, this,
+          [this](const QString& ip){ showPairingPopup(ip); });
   connect(&controller_, &StreamController::approvalRequested, this,
     [this](const QString& id, const QString& name, const QString& ip){
+      hidePairingPopup();   // device got past TLS pairing (sent HELLO) — code no longer needed
       // Auto-approve a peer we just woke ourselves (the PC already chose it by
       // clicking Connect on the Devices panel) — skip the remembered-id/dialog path.
       const qint64 woken = pendingWakes_.value(ip, 0);
@@ -194,6 +195,70 @@ MainWindow::MainWindow(QWidget* parent)
 
   audioSink_.ensure();   // create/adopt the droppix-audio sink for this session
   setupTray();           // tray icon for "minimize to tray on close" (if a tray exists)
+
+  pairingHideTimer_ = new QTimer(this);
+  pairingHideTimer_->setSingleShot(true);
+  connect(pairingHideTimer_, &QTimer::timeout, this, &MainWindow::hidePairingPopup);
+}
+
+void MainWindow::showPairingPopup(const QString& ip) {
+  if (ip == "127.0.0.1") return;   // USB / localhost is pairing-exempt — no code needed
+  if (!pairingPopup_) {
+    pairingPopup_ = new QDialog(this);
+    pairingPopup_->setWindowTitle("Pairing");
+    pairingPopup_->setModal(false);
+    auto* v = new QVBoxLayout(pairingPopup_);
+    pairingInfo_ = new QLabel; pairingInfo_->setAlignment(Qt::AlignCenter); pairingInfo_->setWordWrap(true);
+    pairingCodeLabel_ = new QLabel; pairingCodeLabel_->setAlignment(Qt::AlignCenter);
+    pairingCodeLabel_->setStyleSheet("font-size:34px; font-weight:700; letter-spacing:6px; color:#14b8a6;");
+    auto* closeBtn = new QPushButton("Close");
+    connect(closeBtn, &QPushButton::clicked, this, &MainWindow::hidePairingPopup);
+    v->addWidget(pairingInfo_);
+    v->addWidget(pairingCodeLabel_);
+    v->addWidget(closeBtn);
+  }
+  pairingInfo_->setText(QString("A device (%1) is connecting.\nEnter this pairing code on the tablet:").arg(ip));
+  pairingCodeLabel_->setText(cert_.pairingCode());
+  pairingPopup_->show();
+  pairingPopup_->raise();
+  pairingPopup_->activateWindow();
+  pairingHideTimer_->start(90000);   // give up showing it after 90s if pairing never completes
+}
+
+void MainWindow::hidePairingPopup() {
+  if (pairingHideTimer_) pairingHideTimer_->stop();
+  if (pairingPopup_) pairingPopup_->hide();
+}
+
+void MainWindow::manageDevices() {
+  QDialog dlg(this);
+  dlg.setWindowTitle("Remembered devices");
+  auto* v = new QVBoxLayout(&dlg);
+  v->addWidget(new QLabel("Devices allowed to connect without asking:"));
+  auto* list = new QListWidget;
+  v->addWidget(list);
+  auto refill = [this, list]{
+    list->clear();
+    const QStringList ids = approved_.ids();
+    if (ids.isEmpty()) { auto* it = new QListWidgetItem("(none)"); it->setFlags(Qt::NoItemFlags); list->addItem(it); }
+    else list->addItems(ids);
+  };
+  refill();
+  auto* forgetSel = new QPushButton("Forget selected");
+  auto* forgetAll = new QPushButton("Forget all");
+  connect(forgetSel, &QPushButton::clicked, &dlg, [this, list, refill]{
+    auto* it = list->currentItem();
+    if (it && (it->flags() & Qt::ItemIsSelectable)) { approved_.remove(it->text()); refill(); }
+  });
+  connect(forgetAll, &QPushButton::clicked, &dlg, [this, refill]{ approved_.clear(); refill(); });
+  auto* row = new QHBoxLayout;
+  row->addWidget(forgetSel); row->addWidget(forgetAll); row->addStretch();
+  v->addLayout(row);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
+  connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+  v->addWidget(buttons);
+  dlg.exec();
 }
 
 void MainWindow::setupTray() {
