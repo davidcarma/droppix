@@ -101,3 +101,13 @@ else
   ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$OUT"   # appimagetool fetches its runtime
 fi
 echo "built: $OUT ($(stat -c%s "$OUT") bytes)"
+
+# Drop a copy into the repo's "complete builds/" folder (git-ignored), named by date +
+# short commit so builds are traceable and don't clobber each other.
+DEST="$REPO/complete builds"
+mkdir -p "$DEST"
+SHA="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+FINAL="$DEST/droppix-$(date +%Y%m%d-%H%M)-$SHA-x86_64.AppImage"
+cp "$OUT" "$FINAL"
+chmod +x "$FINAL" 2>/dev/null || true
+echo "delivered: $FINAL"
