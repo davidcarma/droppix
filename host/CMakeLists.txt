@@ -74,6 +74,8 @@ if(Qt6_FOUND)
     gui/cert_manager.cpp
     gui/audio_sink.cpp
     gui/settings_dialog.cpp
+    gui/port_alloc.cpp
+    gui/session_manager.cpp
     gui/resources.qrc
     src/mdns_browse.cpp
     src/usb_scan.cpp
@@ -122,9 +124,11 @@ add_executable(droppix_tests
   tests/test_usb_scan.cpp
   tests/test_pairing_code.cpp
   tests/test_audio_sink.cpp
+  gui/tests/test_port_alloc.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
   gui/audio_sink.cpp
+  gui/port_alloc.cpp
 )
 target_include_directories(droppix_tests PRIVATE gui)
 target_link_libraries(droppix_tests PRIVATE droppix_core GTest::gtest_main Threads::Threads)
@@ -138,8 +142,11 @@ if(Qt6_FOUND)
     gui/profile_store.cpp
     gui/tests/test_approved_store.cpp
     gui/approved_store.cpp
+    gui/tests/test_session_manager.cpp
+    gui/session_manager.cpp
+    gui/port_alloc.cpp
   )
-  target_include_directories(droppix_gui_tests PRIVATE gui)
+  target_include_directories(droppix_gui_tests PRIVATE gui src)
   target_link_libraries(droppix_gui_tests PRIVATE Qt6::Widgets GTest::gtest_main)
   gtest_discover_tests(droppix_gui_tests)
 endif()

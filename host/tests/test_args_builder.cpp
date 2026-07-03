@@ -7,6 +7,23 @@ static bool has(const std::vector<std::string>& v, const std::string& a) {
   for (auto& s : v) if (s == a) return true;
   return false;
 }
+static std::string valafter(const std::vector<std::string>& v, const std::string& flag) {
+  for (size_t i = 0; i + 1 < v.size(); ++i) if (v[i] == flag) return v[i + 1];
+  return "";
+}
+
+TEST(ArgsBuilder, PerSessionPortAndTouchName) {
+  Settings s; s.source = Settings::Source::Evdi; s.touch = true; s.port = 27000;
+  Command c = build_command(s, "/x", 27003, "droppix-touch-27003");
+  EXPECT_EQ(valafter(c.args, "--port"), "27003");
+  EXPECT_TRUE(has(c.args, "--touch"));
+  EXPECT_EQ(valafter(c.args, "--touch-name"), "droppix-touch-27003");
+}
+TEST(ArgsBuilder, DefaultPortIsSettingsPort) {
+  Settings s; s.source = Settings::Source::Evdi; s.port = 27050;
+  Command c = build_command(s, "/x");   // port = -1 default
+  EXPECT_EQ(valafter(c.args, "--port"), "27050");
+}
 
 TEST(ArgsBuilder, TestPatternRunsBinaryDirectly) {
   Settings s; s.source = Settings::Source::TestPattern;

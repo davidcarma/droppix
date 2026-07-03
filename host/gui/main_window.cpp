@@ -152,7 +152,9 @@ MainWindow::MainWindow(QWidget* parent)
   // streamer's stdin so the tablet shows/hides it without a restart. store()/load() still
   // persist the setting for the next launch.
   connect(settingsDialog_, &SettingsDialog::overlayToggled, this, [this](bool on){
-    if (controller_.running()) controller_.writeLine(QString("overlay %1").arg(on ? 1 : 0));
+    for (auto& s : sessions_.list())
+      if (s.controller && s.controller->running())
+        s.controller->writeLine(QString("overlay %1").arg(on ? 1 : 0));
   });
 
   auto* headerRow = new QHBoxLayout;
@@ -190,6 +192,18 @@ MainWindow::MainWindow(QWidget* parent)
 
   // (auth setup moved to the Settings menu → "Remember authentication")
 
+  // --- Active monitors (one row per live streaming session) ---
+  monitorsList_ = new QListWidget;
+  monitorsList_->setMaximumHeight(96);
+  auto* stopMonBtn = new QPushButton("Stop selected");
+  auto* monLayout = new QVBoxLayout;
+  monLayout->addWidget(monitorsList_);
+  monLayout->addWidget(stopMonBtn);
+  monitorsBox_ = new QGroupBox("Active monitors");
+  monitorsBox_->setLayout(monLayout);
+  monitorsBox_->hide();   // shown when >= 1 session is live
+  connect(stopMonBtn, &QPushButton::clicked, this, &MainWindow::stopSelectedMonitor);
+
   // --- Devices on network (mDNS-discovered tablets) ---
   devicesList_ = new QListWidget;
   connectBtn_ = new QPushButton("Connect");
@@ -207,6 +221,7 @@ MainWindow::MainWindow(QWidget* parent)
   root->addLayout(statusRow);
   root->addWidget(deviceLabel_);
   root->addWidget(startBtn_);
+  root->addWidget(monitorsBox_);
   root->addWidget(devicesBox_, 1);   // the client list now fills the space the log used to
   auto* central = new QWidget; central->setLayout(root);
   setCentralWidget(central);
@@ -231,49 +246,7 @@ MainWindow::MainWindow(QWidget* parent)
     Settings s; if (!n.isEmpty() && store_.load(n, s)) { applySettings(s); store_.setLastUsed(n); }
   });
 
-  connect(&controller_, &StreamController::logLine, this, [](const QString& l){ qInfo("%s", qUtf8Printable(l)); });
-  connect(&controller_, &StreamController::statsReceived, this, [this](const Stats& s){
-    if (s.client_connected) {
-      setStatusDot(kDotConnected);
-      streamLabel_->setText("Connected");
-      statsLabel_->setText(QString("fps %1 · %2 KB · enc %3 ms")
-          .arg(s.fps,0,'f',0).arg(s.frame_kb_avg,0,'f',0).arg(s.encode_ms_avg,0,'f',1));
-    } else {
-      setStatusDot(kDotWaiting);
-      streamLabel_->setText("Waiting for client");
-      statsLabel_->setText("—");
-    }
-  });
-  connect(&controller_, &StreamController::runningChanged, this, [this](bool r){
-    setRunningUi(r);
-    // Keep advertising this PC whether idle or streaming so tablets can discover it
-    // either way (detection is bidirectional). On stream start, refresh in case the
-    // configured port changed; never stop on stream end — only at app close.
-    if (r) refreshAdvertising(); else hidePairingPopup();
-  });
-  // A device connected (or is probing to pair) -> show the pairing code right then.
-  connect(&controller_, &StreamController::connecting, this,
-          [this](const QString& ip){ showPairingPopup(ip); });
-  connect(&controller_, &StreamController::approvalRequested, this,
-    [this](const QString& id, const QString& name, const QString& ip){
-      hidePairingPopup();   // device got past TLS pairing (sent HELLO) — code no longer needed
-      // Auto-approve a peer we just woke ourselves (the PC already chose it by
-      // clicking Connect on the Devices panel) — skip the remembered-id/dialog path.
-      const qint64 woken = pendingWakes_.value(ip, 0);
-      if (woken && QDateTime::currentMSecsSinceEpoch() - woken < 15000) {
-        pendingWakes_.remove(ip);
-        const QString key = id.isEmpty() ? ip : id;
-        approved_.approve(key);                 // remember it too
-        controller_.writeLine("approve " + key);
-        return;
-      }
-      const QString key = id.isEmpty() ? ip : id;
-      if (approved_.isApproved(key)) { controller_.writeLine("approve " + key); return; }
-      auto btn = QMessageBox::question(this, "Allow connection?",
-          QString("Allow \"%1\" (%2) to connect?").arg(name.isEmpty()?ip:name, ip));
-      if (btn == QMessageBox::Yes) { approved_.approve(key); controller_.writeLine("approve " + key); }
-      else controller_.writeLine("deny " + key);
-    });
+  // Per-session signal wiring happens in wireSession() when each session is created.
   // Unified "Available clients" list: network (mDNS) + USB (adb) sources.
   connect(&browser_, &MdnsBrowser::devicesChanged, this, &MainWindow::onDevicesChanged);
   connect(&usbScanner_, &UsbClientScanner::clientsChanged, this, &MainWindow::onUsbClientsChanged);
@@ -427,26 +400,33 @@ void MainWindow::onConnectToSelectedDevice() {
   auto* item = devicesList_->currentItem();
   if (!item) return;
   const QString transport = item->data(Qt::UserRole).toString();
-  const int port = collectSettings().port;   // PC stream port the tablet will dial
-
-  if (transport == "usb") {
-    const QString serial = item->data(Qt::UserRole + 1).toString();
-    if (serial.isEmpty()) return;
-    if (!controller_.running()) onStartStop();
-    adb_.usbConnect(serial, port);            // adb reverse + launch app on the tablet
+  const QString ident = item->data(Qt::UserRole + 1).toString();   // serial (usb) / addr (net)
+  if (ident.isEmpty()) return;
+  const QString key = transport + ":" + ident;
+  const QString label = item->text();
+  if (sessions_.has(key)) {
+    QMessageBox::information(this, "Droppix", "That device already has an active monitor.");
     return;
   }
+  const int port = sessions_.allocatePort(collectSettings().port);
+  if (port < 0) { QMessageBox::information(this, "Droppix", "Monitor limit reached (4)."); return; }
 
-  // network: WAKE the tablet, which then dials the PC
-  const QString addr = item->data(Qt::UserRole + 1).toString();
-  const quint16 wakePort = (quint16)item->data(Qt::UserRole + 2).toUInt();
-  if (addr.isEmpty()) return;
-  if (!controller_.running()) onStartStop();
-  auto bytes = encode_wake((uint16_t)port);
-  QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
-  pendingWakes_[addr] = QDateTime::currentMSecsSinceEpoch();
-  QUdpSocket sock;
-  sock.writeDatagram(dg, QHostAddress(addr), wakePort);
+  std::function<void()> direct;
+  if (transport == "usb") {
+    const QString serial = ident;
+    direct = [this, serial, port]{ adb_.usbConnect(serial, port); };   // adb reverse + launch app
+  } else {
+    const QString addr = ident;
+    const quint16 wakePort = (quint16)item->data(Qt::UserRole + 2).toUInt();
+    direct = [this, addr, wakePort, port]{   // WAKE the tablet, which then dials this port
+      auto bytes = encode_wake((uint16_t)port);
+      QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
+      pendingWakes_[addr] = QDateTime::currentMSecsSinceEpoch();
+      QUdpSocket sock;
+      sock.writeDatagram(dg, QHostAddress(addr), wakePort);
+    };
+  }
+  startSession(key, label, transport, port, direct);
 }
 
 void MainWindow::refreshAdvertising() {
@@ -585,31 +565,96 @@ void MainWindow::showAbout() {
 }
 
 void MainWindow::onStartStop() {
-  if (controller_.running()) { controller_.stop(); return; }
+  // Start a session on the next free port for a tablet that will connect on its own
+  // (USB via adb-reverse, or a tablet dialing in). Additional monitors come via Connect.
+  const int port = sessions_.allocatePort(collectSettings().port);
+  if (port < 0) { QMessageBox::information(this, "Droppix", "Monitor limit reached (4)."); return; }
+  startSession(QString("waiting:%1").arg(port), "Waiting for a tablet…", QString(), port, {});
+}
+
+void MainWindow::startSession(const QString& key, const QString& label, const QString& transport,
+                              int port, std::function<void()> directTablet) {
+  auto* c = new StreamController(this);
+  wireSession(c, key);
   Settings s = collectSettings();
-  Command cmd = build_command(s, streamBin_);
-  if (cmd.needs_adb_reverse) adb_.setupReverse(s.port);
-  qInfo("$ %s ...", cmd.program.c_str());
-  controller_.start(cmd);
+  if (sessions_.count() > 0) s.audio = false;   // audio single-session (shared droppix-audio sink)
+  const std::string tname = ("droppix-touch-" + QString::number(port)).toStdString();
+  Command cmd = build_command(s, streamBin_, port, tname);
+  if (cmd.needs_adb_reverse) adb_.setupReverse(port);
+  qInfo("$ %s ... (:%d)", cmd.program.c_str(), port);
+  c->start(cmd);
+
+  Session sess;
+  sess.controller = c; sess.port = port; sess.key = key; sess.label = label;
+  sess.transport = transport; sess.touchName = QString::fromStdString(tname);
+  sessions_.add(sess);
+
+  auto* row = new QListWidgetItem(
+      QString("%1  ·  %2  ·  :%3").arg(label, transport.isEmpty() ? "—" : transport).arg(port));
+  row->setData(Qt::UserRole, key);
+  monitorsList_->addItem(row);
+  monitorsBox_->show();
+  refreshAdvertising();
+  updateStatus();
+  if (directTablet) directTablet();
+}
+
+void MainWindow::wireSession(StreamController* c, const QString& key) {
+  connect(c, &StreamController::logLine, this, [](const QString& l){ qInfo("%s", qUtf8Printable(l)); });
+  connect(c, &StreamController::statsReceived, this, [this](const Stats& s){
+    if (s.client_connected) anyConnected_ = true;
+    updateStatus();
+  });
+  connect(c, &StreamController::runningChanged, this, [this, key](bool r){
+    if (r) return;   // ended -> tear the session down
+    if (Session* s = sessions_.find(key)) if (s->controller) s->controller->deleteLater();
+    sessions_.remove(key);
+    for (int i = monitorsList_->count() - 1; i >= 0; --i)
+      if (monitorsList_->item(i)->data(Qt::UserRole).toString() == key)
+        delete monitorsList_->takeItem(i);
+    if (sessions_.count() == 0) { monitorsBox_->hide(); anyConnected_ = false; hidePairingPopup(); }
+    updateStatus();
+  });
+  connect(c, &StreamController::connecting, this, [this](const QString& ip){ showPairingPopup(ip); });
+  connect(c, &StreamController::approvalRequested, this,
+    [this, c](const QString& id, const QString& name, const QString& ip){
+      hidePairingPopup();
+      const QString akey = id.isEmpty() ? ip : id;
+      const qint64 woken = pendingWakes_.value(ip, 0);
+      if (woken && QDateTime::currentMSecsSinceEpoch() - woken < 15000) {
+        pendingWakes_.remove(ip);
+        approved_.approve(akey);
+        c->writeLine("approve " + akey);
+        return;
+      }
+      if (approved_.isApproved(akey)) { c->writeLine("approve " + akey); return; }
+      auto btn = QMessageBox::question(this, "Allow connection?",
+          QString("Allow \"%1\" (%2) to connect?").arg(name.isEmpty() ? ip : name, ip));
+      if (btn == QMessageBox::Yes) { approved_.approve(akey); c->writeLine("approve " + akey); }
+      else c->writeLine("deny " + akey);
+    });
+}
+
+void MainWindow::stopSelectedMonitor() {
+  auto* item = monitorsList_->currentItem();
+  if (!item) return;
+  if (Session* s = sessions_.find(item->data(Qt::UserRole).toString()))
+    if (s->controller) s->controller->stop();   // runningChanged(false) removes the row + session
+}
+
+void MainWindow::updateStatus() {
+  const int n = sessions_.count();
+  if (n == 0) { setStatusDot(kDotStopped); streamLabel_->setText("Stopped"); statsLabel_->setText("—"); return; }
+  setStatusDot(anyConnected_ ? kDotConnected : kDotWaiting);
+  streamLabel_->setText(QString("%1 monitor%2%3")
+      .arg(n).arg(n == 1 ? "" : "s").arg(anyConnected_ ? "" : " · waiting"));
+  statsLabel_->setText("—");
 }
 
 void MainWindow::setStatusDot(const char* color) {
   statusDot_->setStyleSheet(QString(
       "background:%1; border-radius:6px;"
       "min-width:12px; max-width:12px; min-height:12px; max-height:12px;").arg(color));
-}
-
-void MainWindow::setRunningUi(bool running) {
-  startBtn_->setText(running ? "■  Stop" : "▶  Start streaming");
-  startBtn_->setProperty("running", running);   // drives the red Stop style (QSS)
-  startBtn_->style()->unpolish(startBtn_);
-  startBtn_->style()->polish(startBtn_);
-  if (running) {
-    setStatusDot(kDotWaiting); streamLabel_->setText("Waiting for client");
-  } else {
-    setStatusDot(kDotStopped); streamLabel_->setText("Stopped");
-  }
-  statsLabel_->setText("—");
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
@@ -627,7 +672,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     event->ignore();
     return;
   }
-  controller_.stop();          // don't orphan the streamer on quit
+  for (auto& s : sessions_.list()) if (s.controller) s.controller->stop();  // don't orphan streamers
   advertiser_.stop();
   browser_.stop();
   usbScanner_.stop();

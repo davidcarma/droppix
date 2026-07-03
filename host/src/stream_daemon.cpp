@@ -60,8 +60,9 @@ static bool safe_output_name(const std::string& s) {
 // desktop and outputName is ignored) and outputName=<droppix>. Logs KWin's before/
 // after state to stderr (host log) so a single run shows exactly what KWin did.
 // Retries while KWin registers the new uinput device; runs detached / timeout-guarded.
-static void bind_touch_to_output(std::string output_name) {
+static void bind_touch_to_output(std::string output_name, std::string touch_name) {
   if (!safe_output_name(output_name)) return;
+  if (!safe_output_name(touch_name)) return;   // it's shell-injected below; keep it [A-Za-z0-9-] like an output name
   // Properties must be read/written via org.freedesktop.DBus.Properties (the qdbus
   // shorthand "Interface.prop value" silently errors with UnknownInterface on these
   // objects). G/S = Get/Set helpers. inner uses ONLY double quotes so it can be wrapped
@@ -76,7 +77,7 @@ static void bind_touch_to_output(std::string output_name) {
       "org.kde.KWin.InputDeviceManager.ListTouch 2>/dev/null); do "
       "P=/org/kde/KWin/InputDevice/$d; "
       "n=$(\"$QD\" org.kde.KWin \"$P\" $PG $I name 2>/dev/null); "
-      "if [ \"$n\" = droppix-touch ]; then "
+      "if [ \"$n\" = " + touch_name + " ]; then "
       "echo \"[touch-bind] found droppix-touch ($d) before mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)] target=" +
       output_name + "\" >&2; "
       "\"$QD\" org.kde.KWin \"$P\" $PS $I mapToWorkspace false 2>&1 | sed \"s/^/[touch-bind] set mapToWorkspace: /\" >&2; "
@@ -96,10 +97,6 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // (finds nothing for the test-pattern source, which has no droppix output).
   std::vector<OutputInfo> before_outputs = parse_kscreen_outputs(run_kscreen());
 
-  int w = 0, h = 0;
-  if (!src_.start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
-  std::fprintf(stderr, "source %dx%d\n", w, h);
-
   if (!tx_.accept_client(60000)) { std::fprintf(stderr, "no client\n"); return false; }
   // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
   // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
@@ -117,6 +114,15 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       return false;   // closes the socket; reconnect loop continues
     }
   }
+
+  // Build the source at the tablet's native resolution (the factory substitutes defaults
+  // when the client reports 0). The evdi monitor therefore matches the tablet exactly; on a
+  // portrait<->landscape rotation the session restarts and the reconnect's HELLO gives the
+  // swapped dims. start() writes the actual chosen dimensions into w/h.
+  int w = static_cast<int>(cw), h = static_cast<int>(ch);
+  src_ = make_source_(w, h);
+  if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
+  std::fprintf(stderr, "source %dx%d\n", w, h);
 
   if (!enc_.open(w, h, cfg_.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
   if (!tx_.send_config(w, h, cfg_.fps, enc_.extradata())) return false;
@@ -159,14 +165,14 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   InputInjector injector;
   tx_.set_touch_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
   if (cfg_.touch) {
-    if (injector.open()) {
+    if (injector.open(cfg_.touch_name)) {
       tx_.set_touch_handler([&injector](const std::vector<TouchContact>& contacts) {
         injector.inject(contacts);
       });
       if (have_output) {
         std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                      droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
-        std::thread(bind_touch_to_output, droppix.name).detach();
+        std::thread(bind_touch_to_output, droppix.name, cfg_.touch_name).detach();
         // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
         // the bounding box of all kscreen outputs.
         int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;
@@ -216,7 +222,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       if (audio.drain(chunks))
         for (auto& c : chunks) tx_.send_audio(c);
     }
-    Frame f = src_.next(frame_timeout);
+    Frame f = src_->next(frame_timeout);
     if (!f.valid) { tx_.poll_control(); continue; }
     int64_t pts_us = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::steady_clock::now() - t0).count();

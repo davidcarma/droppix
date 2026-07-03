@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
   int port = 27000, fps = 30, bitrate = 8000, frames = 0;
   int width = 1920, height = 1080, refresh = 60;
   bool test_pattern = false, adb_reverse = false, stats_json = false, touch = false;
+  std::string touch_name = "droppix-touch";   // uinput device name (unique per session for multi-monitor)
   bool approve = false;
   bool audio = false;
   bool overlay = false;
@@ -54,6 +55,7 @@ int main(int argc, char** argv) {
     else if (a == "--adb-reverse") adb_reverse = true;
     else if (a == "--stats-json") stats_json = true;
     else if (a == "--touch") touch = true;
+    else if (a == "--touch-name") touch_name = sval();
     else if (a == "--approve") approve = true;
     else if (a == "--port") port = val();
     else if (a == "--fps") fps = val();
@@ -126,22 +128,21 @@ int main(int argc, char** argv) {
     }).detach();
   }
 
+  // The daemon builds the source AFTER the tablet's HELLO, sized to the tablet's native
+  // resolution (or --width/--height when the client reports 0). On a portrait<->landscape
+  // rotation the daemon ends the session; the reconnect's HELLO gives the swapped dims.
+  auto make_source = [&](int w, int h) -> std::unique_ptr<droppix::FrameSource> {
+    if (w <= 0) w = width;
+    if (h <= 0) h = height;
+    if (test_pattern) return std::make_unique<droppix::TestPatternSource>(w, h, fps);
+    return std::make_unique<droppix::EvdiFrameSource>(w, h, refresh);
+  };
+
   // Reconnect loop: keep serving sessions until SIGINT. One-shot when --frames>0.
-  // The stream is portrait- or landscape-SHAPED per the tablet's reported orientation;
-  // when it crosses that boundary the daemon ends the session and we rebuild here at
-  // the swapped dimensions (the app reconnects).
   while (!g_stop) {
-    bool portrait = (g_orientation == 1 || g_orientation == 3);
-    int sw = portrait ? height : width;
-    int sh = portrait ? width : height;
     droppix::SoftwareEncoder enc;
-    droppix::TestPatternSource pattern(sw, sh, fps);
-    droppix::EvdiFrameSource evdi(sw, sh, refresh);
-    droppix::FrameSource& src =
-        test_pattern ? static_cast<droppix::FrameSource&>(pattern)
-                     : static_cast<droppix::FrameSource&>(evdi);
-    droppix::StreamDaemon daemon(src, enc, tx,
-        {fps, bitrate, stats_json, touch, droppix::Rect{mx, my, mw, mh}, dtw, dth,
+    droppix::StreamDaemon daemon(make_source, enc, tx,
+        {fps, bitrate, stats_json, touch, touch_name, droppix::Rect{mx, my, mw, mh}, dtw, dth,
          orientation, &g_orientation, approve, &g_gate, audio, overlay, &g_overlay});
     daemon.run_until(g_stop, frames);
     if (frames > 0) break;  // one-shot (test) mode exits after a single session

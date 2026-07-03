@@ -2,9 +2,11 @@
 #include <QMainWindow>
 #include <QHash>
 #include <QString>
+#include <functional>
 #include "settings.h"
 #include "profile_store.h"
 #include "stream_controller.h"
+#include "session_manager.h"
 #include "adb_manager.h"
 #include "mdns_advertiser.h"
 #include "mdns_browser.h"
@@ -30,10 +32,16 @@ class MainWindow : public QMainWindow {
   void stageCertsToHost();           // Flatpak: mirror cert/key to the host for the streamer
   Settings collectSettings() const;
   void applySettings(const Settings& s);
-  void onStartStop();
+  void onStartStop();           // Start button -> spawn a session on the next free port
+  // Spawn a streaming session: a new StreamController on `port`, wired, started, added to
+  // the Active-monitors panel; `directTablet` (may be empty) wakes/usb-connects the tablet.
+  void startSession(const QString& key, const QString& label, const QString& transport,
+                    int port, std::function<void()> directTablet);
+  void wireSession(StreamController* c, const QString& key);
+  void stopSelectedMonitor();   // stop the session selected in the Active-monitors list
+  void updateStatus();          // status dot/text from session count + connectivity
   void refreshProfiles();
   void restoreLastProfile();
-  void setRunningUi(bool running);
   void setStatusDot(const char* color);
   void setupAuth();              // install the polkit rule via one pkexec prompt
   void showAbout();             // Help -> About developer-info dialog
@@ -61,12 +69,15 @@ class MainWindow : public QMainWindow {
   QTimer* pairingHideTimer_ = nullptr;
   QListWidget* devicesList_;
   QPushButton* connectBtn_;
+  QGroupBox* monitorsBox_;      // "Active monitors" panel
+  QListWidget* monitorsList_;   // one row per live session
+  bool anyConnected_ = false;   // any session has a client connected (drives the status dot)
 
   ProfileStore store_;
   ApprovedStore approved_;
   CertManager cert_;
   DroppixAudioSink audioSink_;
-  StreamController controller_;
+  SessionManager sessions_;     // one session (= streamer = monitor) per connected tablet
   AdbManager adb_;
   MdnsAdvertiser advertiser_;
   quint16 advertisedPort_ = 0;     // port currently published via _droppix._tcp (0 = none)

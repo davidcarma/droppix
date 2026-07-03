@@ -14,7 +14,7 @@ namespace droppix {
 class InputInjector {
  public:
   ~InputInjector();
-  bool open();  // needs root /dev/uinput (the multi-touch touchscreen)
+  bool open(const std::string& name = "droppix-touch");  // needs root /dev/uinput (the MT touchscreen)
   bool ok() const { return fd_ >= 0; }
   void inject(const std::vector<TouchContact>& contacts);
   // Records the droppix output rect within the desktop and creates the right-click pointer
