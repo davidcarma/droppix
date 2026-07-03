@@ -22,7 +22,7 @@ void emit(int fd, int type, int code, int val) {
 }
 }  // namespace
 
-bool InputInjector::open() {
+bool InputInjector::open(const std::string& name) {
   fd_ = ::open("/dev/uinput", O_WRONLY | O_NONBLOCK);
   if (fd_ < 0) { std::fprintf(stderr, "uinput open failed (need root); input disabled\n"); return false; }
 
@@ -51,7 +51,7 @@ bool InputInjector::open() {
 
   uinput_setup us{};
   us.id.bustype = BUS_USB; us.id.vendor = 0x1209; us.id.product = 0xd701;
-  std::strncpy(us.name, "droppix-touch", sizeof(us.name) - 1);
+  std::strncpy(us.name, name.c_str(), sizeof(us.name) - 1);
   if (ioctl(fd_, UI_DEV_SETUP, &us) < 0 || ioctl(fd_, UI_DEV_CREATE) < 0) {
     std::fprintf(stderr, "uinput device create failed; input disabled\n");
     ::close(fd_); fd_ = -1; return false;

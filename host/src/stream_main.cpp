@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
   int port = 27000, fps = 30, bitrate = 8000, frames = 0;
   int width = 1920, height = 1080, refresh = 60;
   bool test_pattern = false, adb_reverse = false, stats_json = false, touch = false;
+  std::string touch_name = "droppix-touch";   // uinput device name (unique per session for multi-monitor)
   bool approve = false;
   bool audio = false;
   bool overlay = false;
@@ -54,6 +55,7 @@ int main(int argc, char** argv) {
     else if (a == "--adb-reverse") adb_reverse = true;
     else if (a == "--stats-json") stats_json = true;
     else if (a == "--touch") touch = true;
+    else if (a == "--touch-name") touch_name = sval();
     else if (a == "--approve") approve = true;
     else if (a == "--port") port = val();
     else if (a == "--fps") fps = val();
@@ -141,7 +143,7 @@ int main(int argc, char** argv) {
         test_pattern ? static_cast<droppix::FrameSource&>(pattern)
                      : static_cast<droppix::FrameSource&>(evdi);
     droppix::StreamDaemon daemon(src, enc, tx,
-        {fps, bitrate, stats_json, touch, droppix::Rect{mx, my, mw, mh}, dtw, dth,
+        {fps, bitrate, stats_json, touch, touch_name, droppix::Rect{mx, my, mw, mh}, dtw, dth,
          orientation, &g_orientation, approve, &g_gate, audio, overlay, &g_overlay});
     daemon.run_until(g_stop, frames);
     if (frames > 0) break;  // one-shot (test) mode exits after a single session

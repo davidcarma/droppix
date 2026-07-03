@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <csignal>
+#include <string>
 #include "frame_source.h"
 #include "encoder.h"
 #include "transport_server.h"
@@ -11,6 +12,7 @@ namespace droppix {
 struct StreamConfig {
   int fps = 30; int bitrate_kbps = 8000; bool stats_json = false;
   bool touch = false;          // enable uinput injection (off by default)
+  std::string touch_name = "droppix-touch";  // uinput device name (unique per session for multi-monitor)
   Rect monitor{};              // droppix monitor rect (from --monitor); 0 => query kscreen
   int desktop_w = 0, desktop_h = 0;  // desktop bounds (from --desktop); 0 => query kscreen
   int orientation = 0;         // initial orientation code (0..3); only seeds dims now
