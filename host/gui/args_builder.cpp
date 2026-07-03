@@ -2,7 +2,10 @@
 
 namespace droppix {
 
-Command build_command(const Settings& s, const std::string& stream_bin) {
+Command build_command(const Settings& s, const std::string& stream_bin,
+                      int port, const std::string& touch_name) {
+  const int use_port = (port >= 0) ? port : s.port;
+  const std::string tname = touch_name.empty() ? "droppix-touch" : touch_name;
   std::vector<std::string> a;  // droppix_stream's own arguments
   if (s.source == Settings::Source::TestPattern) {
     a.push_back("--test-pattern");
@@ -12,7 +15,10 @@ Command build_command(const Settings& s, const std::string& stream_bin) {
   a.push_back("--height"); a.push_back(std::to_string(s.height));
   if (s.source == Settings::Source::Evdi) {
     a.push_back("--refresh"); a.push_back(std::to_string(s.refresh_hz));
-    if (s.touch) a.push_back("--touch");   // touch injection (evdi/root only)
+    if (s.touch) {
+      a.push_back("--touch");   // touch injection (evdi/root only)
+      a.push_back("--touch-name"); a.push_back(tname);
+    }
     if (s.orientation != 0) {              // rotate the droppix output (evdi only)
       a.push_back("--orientation"); a.push_back(std::to_string(s.orientation));
     }
@@ -20,7 +26,7 @@ Command build_command(const Settings& s, const std::string& stream_bin) {
   }
   a.push_back("--fps");     a.push_back(std::to_string(s.fps));
   a.push_back("--bitrate"); a.push_back(std::to_string(s.bitrate_kbps));
-  a.push_back("--port");    a.push_back(std::to_string(s.port));
+  a.push_back("--port");    a.push_back(std::to_string(use_port));
   a.push_back("--stats-json");
   if (s.audio) a.push_back("--audio");
   if (s.overlay) a.push_back("--overlay");
