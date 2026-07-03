@@ -128,21 +128,20 @@ int main(int argc, char** argv) {
     }).detach();
   }
 
+  // The daemon builds the source AFTER the tablet's HELLO, sized to the tablet's native
+  // resolution (or --width/--height when the client reports 0). On a portrait<->landscape
+  // rotation the daemon ends the session; the reconnect's HELLO gives the swapped dims.
+  auto make_source = [&](int w, int h) -> std::unique_ptr<droppix::FrameSource> {
+    if (w <= 0) w = width;
+    if (h <= 0) h = height;
+    if (test_pattern) return std::make_unique<droppix::TestPatternSource>(w, h, fps);
+    return std::make_unique<droppix::EvdiFrameSource>(w, h, refresh);
+  };
+
   // Reconnect loop: keep serving sessions until SIGINT. One-shot when --frames>0.
-  // The stream is portrait- or landscape-SHAPED per the tablet's reported orientation;
-  // when it crosses that boundary the daemon ends the session and we rebuild here at
-  // the swapped dimensions (the app reconnects).
   while (!g_stop) {
-    bool portrait = (g_orientation == 1 || g_orientation == 3);
-    int sw = portrait ? height : width;
-    int sh = portrait ? width : height;
     droppix::SoftwareEncoder enc;
-    droppix::TestPatternSource pattern(sw, sh, fps);
-    droppix::EvdiFrameSource evdi(sw, sh, refresh);
-    droppix::FrameSource& src =
-        test_pattern ? static_cast<droppix::FrameSource&>(pattern)
-                     : static_cast<droppix::FrameSource&>(evdi);
-    droppix::StreamDaemon daemon(src, enc, tx,
+    droppix::StreamDaemon daemon(make_source, enc, tx,
         {fps, bitrate, stats_json, touch, touch_name, droppix::Rect{mx, my, mw, mh}, dtw, dth,
          orientation, &g_orientation, approve, &g_gate, audio, overlay, &g_overlay});
     daemon.run_until(g_stop, frames);

@@ -1,6 +1,8 @@
 #pragma once
 #include <atomic>
 #include <csignal>
+#include <functional>
+#include <memory>
 #include <string>
 #include "frame_source.h"
 #include "encoder.h"
@@ -28,16 +30,20 @@ struct StreamConfig {
 
 class StreamDaemon {
  public:
-  StreamDaemon(FrameSource& src, Encoder& enc, TransportServer& tx, StreamConfig cfg)
-      : src_(src), enc_(enc), tx_(tx), cfg_(cfg) {}
-  // Waits for a client + HELLO, opens the encoder at the source's dimensions,
-  // sends CONFIG, then streams. Stops when `stop` is set or after `max_frames`
-  // encoded frames (max_frames == 0 means unlimited). Returns true if it ran a
-  // session (handshake completed).
+  // make_source(w, h) builds the frame source at the requested dimensions — called AFTER
+  // the client's HELLO so an evdi monitor is sized to the tablet's native resolution. The
+  // factory may substitute defaults when w/h are 0 (client didn't report).
+  StreamDaemon(std::function<std::unique_ptr<FrameSource>(int, int)> make_source,
+               Encoder& enc, TransportServer& tx, StreamConfig cfg)
+      : make_source_(std::move(make_source)), enc_(enc), tx_(tx), cfg_(cfg) {}
+  // Waits for a client + HELLO, builds the source at the reported size, opens the encoder,
+  // sends CONFIG, then streams. Stops when `stop` is set or after `max_frames` encoded frames
+  // (0 = unlimited). Returns true if it ran a session (handshake completed).
   bool run_until(const volatile std::sig_atomic_t& stop, int max_frames);
 
  private:
-  FrameSource& src_;
+  std::function<std::unique_ptr<FrameSource>(int, int)> make_source_;
+  std::unique_ptr<FrameSource> src_;
   Encoder& enc_;
   TransportServer& tx_;
   StreamConfig cfg_;

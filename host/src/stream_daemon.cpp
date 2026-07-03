@@ -97,10 +97,6 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // (finds nothing for the test-pattern source, which has no droppix output).
   std::vector<OutputInfo> before_outputs = parse_kscreen_outputs(run_kscreen());
 
-  int w = 0, h = 0;
-  if (!src_.start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
-  std::fprintf(stderr, "source %dx%d\n", w, h);
-
   if (!tx_.accept_client(60000)) { std::fprintf(stderr, "no client\n"); return false; }
   // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
   // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
@@ -118,6 +114,15 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       return false;   // closes the socket; reconnect loop continues
     }
   }
+
+  // Build the source at the tablet's native resolution (the factory substitutes defaults
+  // when the client reports 0). The evdi monitor therefore matches the tablet exactly; on a
+  // portrait<->landscape rotation the session restarts and the reconnect's HELLO gives the
+  // swapped dims. start() writes the actual chosen dimensions into w/h.
+  int w = static_cast<int>(cw), h = static_cast<int>(ch);
+  src_ = make_source_(w, h);
+  if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
+  std::fprintf(stderr, "source %dx%d\n", w, h);
 
   if (!enc_.open(w, h, cfg_.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
   if (!tx_.send_config(w, h, cfg_.fps, enc_.extradata())) return false;
@@ -217,7 +222,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       if (audio.drain(chunks))
         for (auto& c : chunks) tx_.send_audio(c);
     }
-    Frame f = src_.next(frame_timeout);
+    Frame f = src_->next(frame_timeout);
     if (!f.valid) { tx_.poll_control(); continue; }
     int64_t pts_us = std::chrono::duration_cast<std::chrono::microseconds>(
                          std::chrono::steady_clock::now() - t0).count();
