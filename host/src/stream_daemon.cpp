@@ -167,6 +167,18 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
         std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                      droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
         std::thread(bind_touch_to_output, droppix.name).detach();
+        // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
+        // the bounding box of all kscreen outputs.
+        int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;
+        if (deskW <= 0 || deskH <= 0) {
+          deskW = 0; deskH = 0;
+          for (const auto& o : after_outputs) {
+            if (o.geom.x + o.geom.w > deskW) deskW = o.geom.x + o.geom.w;
+            if (o.geom.y + o.geom.h > deskH) deskH = o.geom.y + o.geom.h;
+          }
+        }
+        injector.set_geometry(droppix.geom.x, droppix.geom.y, droppix.geom.w, droppix.geom.h,
+                              deskW, deskH);
       } else {
         std::fprintf(stderr, "input: could not identify droppix output; touch may land "
                      "on the wrong monitor (map 'droppix-touch' in System Settings > Touch Screen)\n");

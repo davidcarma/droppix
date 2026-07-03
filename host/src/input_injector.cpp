@@ -5,9 +5,15 @@
 #include <sys/ioctl.h>
 #include <cstring>
 #include <cstdio>
+#include <chrono>
+#include <algorithm>
 
 namespace droppix {
 namespace {
+int64_t now_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 void emit(int fd, int type, int code, int val) {
   input_event ev{};
   ev.type = type; ev.code = code; ev.value = val;
@@ -79,9 +85,59 @@ void InputInjector::inject(const std::vector<TouchContact>& contacts) {
     emit(fd_, EV_ABS, ABS_PRESSURE, p.pressure);
   }
   emit(fd_, EV_SYN, SYN_REPORT, 0);
+
+  // Two-finger tap -> right-click on the pointer device (if geometry is known).
+  const TwoFingerTap::Result t = tap_.update(contacts, now_ms());
+  if (t.rightClick) right_click(t.x, t.y);
+}
+
+void InputInjector::set_geometry(int out_x, int out_y, int out_w, int out_h,
+                                 int desktop_w, int desktop_h) {
+  outX_ = out_x; outY_ = out_y; outW_ = out_w; outH_ = out_h;
+  deskW_ = desktop_w; deskH_ = desktop_h;
+  if (rc_fd_ >= 0 || deskW_ <= 0 || deskH_ <= 0) return;   // created once; needs desktop bounds
+
+  rc_fd_ = ::open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+  if (rc_fd_ < 0) { std::fprintf(stderr, "right-click: uinput open failed; disabled\n"); return; }
+  // Absolute pointer spanning the whole desktop; we place it in desktop pixels + click RIGHT.
+  ioctl(rc_fd_, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
+  ioctl(rc_fd_, UI_SET_EVBIT, EV_KEY);
+  ioctl(rc_fd_, UI_SET_KEYBIT, BTN_LEFT);
+  ioctl(rc_fd_, UI_SET_KEYBIT, BTN_RIGHT);
+  ioctl(rc_fd_, UI_SET_EVBIT, EV_ABS);
+  ioctl(rc_fd_, UI_SET_ABSBIT, ABS_X);
+  ioctl(rc_fd_, UI_SET_ABSBIT, ABS_Y);
+  uinput_abs_setup rx{}; rx.code = ABS_X; rx.absinfo.minimum = 0; rx.absinfo.maximum = deskW_ - 1;
+  ioctl(rc_fd_, UI_ABS_SETUP, &rx);
+  uinput_abs_setup ry{}; ry.code = ABS_Y; ry.absinfo.minimum = 0; ry.absinfo.maximum = deskH_ - 1;
+  ioctl(rc_fd_, UI_ABS_SETUP, &ry);
+  uinput_setup us{};
+  us.id.bustype = BUS_USB; us.id.vendor = 0x1209; us.id.product = 0xd702;
+  std::strncpy(us.name, "droppix-rightclick", sizeof(us.name) - 1);
+  if (ioctl(rc_fd_, UI_DEV_SETUP, &us) < 0 || ioctl(rc_fd_, UI_DEV_CREATE) < 0) {
+    std::fprintf(stderr, "right-click: uinput device create failed; disabled\n");
+    ::close(rc_fd_); rc_fd_ = -1;
+  }
+}
+
+void InputInjector::right_click(uint16_t x_norm, uint16_t y_norm) {
+  if (rc_fd_ < 0 || outW_ <= 0 || outH_ <= 0) return;
+  // Map the tap (0..65535 on the droppix monitor) into desktop pixels.
+  int px = outX_ + static_cast<int>(static_cast<int64_t>(x_norm) * outW_ / 65535);
+  int py = outY_ + static_cast<int>(static_cast<int64_t>(y_norm) * outH_ / 65535);
+  px = std::clamp(px, 0, deskW_ - 1);
+  py = std::clamp(py, 0, deskH_ - 1);
+  emit(rc_fd_, EV_ABS, ABS_X, px);
+  emit(rc_fd_, EV_ABS, ABS_Y, py);
+  emit(rc_fd_, EV_SYN, SYN_REPORT, 0);
+  emit(rc_fd_, EV_KEY, BTN_RIGHT, 1);
+  emit(rc_fd_, EV_SYN, SYN_REPORT, 0);
+  emit(rc_fd_, EV_KEY, BTN_RIGHT, 0);
+  emit(rc_fd_, EV_SYN, SYN_REPORT, 0);
 }
 
 InputInjector::~InputInjector() {
   if (fd_ >= 0) { ioctl(fd_, UI_DEV_DESTROY); ::close(fd_); }
+  if (rc_fd_ >= 0) { ioctl(rc_fd_, UI_DEV_DESTROY); ::close(rc_fd_); }
 }
 }  // namespace droppix
