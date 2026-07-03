@@ -33,6 +33,7 @@ add_library(droppix_core
   src/monitor_geometry.cpp
   src/input_injector.cpp
   src/mt_slots.cpp
+  src/tap_gesture.cpp
   src/mdns_browse.cpp
   src/usb_scan.cpp
   src/audio_streamer.cpp
@@ -111,6 +112,7 @@ add_executable(droppix_tests
   tests/test_cvt.cpp
   tests/test_input_map.cpp
   tests/test_mt_slots.cpp
+  tests/test_tap_gesture.cpp
   tests/test_monitor_geometry.cpp
   tests/test_orientation.cpp
   tests/test_audio_streamer.cpp
