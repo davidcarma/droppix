@@ -85,7 +85,14 @@ class ConnectActivity : AppCompatActivity() {
             onFound = { name, host, port -> onPcFound(name, host, port) },
             onLost = { name -> onPcLost(name) }
         )
-        wakeService.start { host, port -> showWakeConfirm(host, port) }
+        wakeService.start { host, port ->
+            if (com.droppix.app.net.shouldAutoAccept(tlsTrust.isPaired(host))) {
+                status.text = "Auto-connecting to $host..."
+                connectTo(host, port)
+            } else {
+                showWakeConfirm(host, port)
+            }
+        }
     }
 
     override fun onPause() {
