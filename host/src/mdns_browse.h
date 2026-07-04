@@ -10,6 +10,7 @@ struct MdnsDevice {
   std::string name;
   std::string address;
   uint16_t port = 0;
+  std::string id;   // TXT "id=<stableId>" (empty if absent); matches the host approved store
 };
 
 // Parses the resolved ("=") lines of `avahi-browse -rptk` output, keeping

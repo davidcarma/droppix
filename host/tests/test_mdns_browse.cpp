@@ -19,3 +19,17 @@ TEST(MdnsBrowse, IgnoresNonResolvedAndIPv6) {
   auto v = parse_avahi_browse("=;eth0;IPv6;X;_droppix-client._tcp;local;h;fe80::1;48000;\"\"\n");
   EXPECT_TRUE(v.empty());
 }
+
+TEST(MdnsBrowse, ParsesTxtId) {
+  auto v = parse_avahi_browse(
+    "=;eth0;IPv4;Nexus 10;_droppix-client._tcp;local;h;192.168.1.42;48000;\"id=dev-abc-123\"\n");
+  ASSERT_EQ(v.size(), 1u);
+  EXPECT_EQ(v[0].id, "dev-abc-123");
+}
+
+TEST(MdnsBrowse, EmptyTxtGivesEmptyId) {
+  auto v = parse_avahi_browse(
+    "=;eth0;IPv4;Nexus 10;_droppix-client._tcp;local;h;192.168.1.42;48000;\"\"\n");
+  ASSERT_EQ(v.size(), 1u);
+  EXPECT_EQ(v[0].id, "");
+}
