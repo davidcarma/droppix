@@ -69,6 +69,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   audio_ = new QCheckBox("Audio");
   overlay_ = new QCheckBox("Performance Overlay");
   connect(overlay_, &QCheckBox::toggled, this, &SettingsDialog::overlayToggled);  // live toggle
+  autoConnect_ = new QCheckBox("Auto-connect known monitors");
 
   auto* form = new QFormLayout;
   form->setVerticalSpacing(10);
@@ -89,6 +90,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   form->addRow("", touch_);
   form->addRow("", audio_);
   form->addRow("", overlay_);
+  form->addRow("", autoConnect_);
 
   // --- App-level section (global prefs, file-backed; independent of profiles) ---
   auto* appLabel = new QLabel("Application"); appLabel->setObjectName("caption");
@@ -134,6 +136,7 @@ void SettingsDialog::load(const Settings& s) {
   int i = orientation_->findData(s.orientation);
   orientation_->setCurrentIndex(i >= 0 ? i : 0);
   overlay_->setChecked(s.overlay);
+  autoConnect_->setChecked(s.autoConnect);
 }
 
 void SettingsDialog::store(Settings& s) const {
@@ -149,6 +152,7 @@ void SettingsDialog::store(Settings& s) const {
   s.orientation = orientation_->currentData().toInt();
   s.auto_adb_reverse = true;   // always on now (option removed from the GUI); USB just works
   s.overlay = overlay_->isChecked();
+  s.autoConnect = autoConnect_->isChecked();
 }
 
 }  // namespace droppix
