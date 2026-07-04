@@ -15,7 +15,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <algorithm>
 #include "wake.h"
+#include "auto_connect.h"
 
 namespace droppix {
 
@@ -258,6 +260,10 @@ MainWindow::MainWindow(QWidget* parent)
   connect(devicesList_, &QListWidget::itemDoubleClicked, this,
           [this](QListWidgetItem*){ onConnectToSelectedDevice(); });
 
+  autoConnectTimer_.setSingleShot(true);
+  autoConnectTimer_.setInterval(750);   // let a just-appeared tablet settle before WAKE
+  connect(&autoConnectTimer_, &QTimer::timeout, this, &MainWindow::evaluateAutoConnect);
+
   if (browser_.available()) browser_.start();
   if (usbScanner_.available()) usbScanner_.start();
   if (!browser_.available() && !usbScanner_.available()) devicesBox_->hide();
@@ -361,11 +367,13 @@ bool MainWindow::minimizeToTrayRequested() const {
 void MainWindow::onDevicesChanged(const QList<MdnsDevice>& devices) {
   netDevices_ = devices;
   rebuildClientList();
+  autoConnectTimer_.start();   // (re)arm the debounced auto-connect evaluation
 }
 
 void MainWindow::onUsbClientsChanged(const QList<UsbClient>& clients) {
   usbClients_ = clients;
   rebuildClientList();
+  autoConnectTimer_.start();   // (re)arm the debounced auto-connect evaluation
 }
 
 // Repopulates the unified list from both sources (USB first, then network),
@@ -391,6 +399,7 @@ void MainWindow::rebuildClientList() {
     item->setData(Qt::UserRole, "net");
     item->setData(Qt::UserRole + 1, address);
     item->setData(Qt::UserRole + 2, (uint)d.port);
+    item->setData(Qt::UserRole + 3, QString::fromStdString(d.id));   // for approved-store match
     devicesList_->addItem(item);
     if (item->text() == prevSelected) devicesList_->setCurrentItem(item);
   }
@@ -404,20 +413,28 @@ void MainWindow::onConnectToSelectedDevice() {
   if (ident.isEmpty()) return;
   const QString key = transport + ":" + ident;
   const QString label = item->text();
+  const quint16 wakePort = (quint16)item->data(Qt::UserRole + 2).toUInt();
+  connectDevice(key, label, transport, ident, wakePort, /*quietIfBusy=*/false);
+}
+
+bool MainWindow::connectDevice(const QString& key, const QString& label, const QString& transport,
+                               const QString& ident, quint16 wakePort, bool quietIfBusy) {
   if (sessions_.has(key)) {
-    QMessageBox::information(this, "Droppix", "That device already has an active monitor.");
-    return;
+    if (!quietIfBusy)
+      QMessageBox::information(this, "Droppix", "That device already has an active monitor.");
+    return false;
   }
   const int port = sessions_.allocatePort(collectSettings().port);
-  if (port < 0) { QMessageBox::information(this, "Droppix", "Monitor limit reached (4)."); return; }
-
+  if (port < 0) {
+    if (!quietIfBusy) QMessageBox::information(this, "Droppix", "Monitor limit reached (4).");
+    return false;
+  }
   std::function<void()> direct;
   if (transport == "usb") {
     const QString serial = ident;
     direct = [this, serial, port]{ adb_.usbConnect(serial, port); };   // adb reverse + launch app
   } else {
     const QString addr = ident;
-    const quint16 wakePort = (quint16)item->data(Qt::UserRole + 2).toUInt();
     direct = [this, addr, wakePort, port]{   // WAKE the tablet, which then dials this port
       auto bytes = encode_wake((uint16_t)port);
       QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
@@ -427,6 +444,35 @@ void MainWindow::onConnectToSelectedDevice() {
     };
   }
   startSession(key, label, transport, port, direct);
+  return true;
+}
+
+void MainWindow::evaluateAutoConnect() {
+  if (!collectSettings().autoConnect) return;
+
+  QList<AutoConnectCandidate> cands;
+  for (const auto& c : usbClients_)
+    cands.push_back({QString("usb:") + c.serial, /*eligible=*/true});
+  for (const auto& d : netDevices_) {
+    const QString id = QString::fromStdString(d.id);
+    const QString addr = QString::fromStdString(d.address);
+    cands.push_back({QString("net:") + addr, !id.isEmpty() && approved_.isApproved(id)});
+  }
+
+  const QList<QString> toConnect = devicesToConnect(true, cands, sessions_.keys());
+  for (const QString& key : toConnect) {
+    if (key.startsWith("usb:")) {
+      const QString serial = key.mid(4);
+      connectDevice(key, serial + " — USB", "usb", serial, 0, /*quietIfBusy=*/true);
+    } else {  // "net:"
+      const QString addr = key.mid(4);
+      auto it = std::find_if(netDevices_.begin(), netDevices_.end(),
+          [&](const MdnsDevice& d){ return QString::fromStdString(d.address) == addr; });
+      if (it == netDevices_.end()) continue;
+      const QString label = QString("%1 — %2").arg(QString::fromStdString(it->name), addr);
+      connectDevice(key, label, "net", addr, it->port, /*quietIfBusy=*/true);
+    }
+  }
 }
 
 void MainWindow::refreshAdvertising() {
