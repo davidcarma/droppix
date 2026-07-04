@@ -34,6 +34,7 @@ static QJsonObject toJson(const Settings& s) {
   o["touch"] = s.touch;
   o["audio"] = s.audio;
   o["overlay"] = s.overlay;
+  o["auto_connect"] = s.autoConnect;
   o["orientation"] = s.orientation;
   return o;
 }
@@ -51,6 +52,7 @@ static Settings fromJson(const QJsonObject& o) {
   s.touch = o["touch"].toBool(s.touch);
   s.audio = o["audio"].toBool(s.audio);
   s.overlay = o["overlay"].toBool(s.overlay);
+  s.autoConnect = o["auto_connect"].toBool(s.autoConnect);
   s.orientation = o["orientation"].toInt(s.orientation);
   return s;
 }

@@ -2,6 +2,7 @@
 #include <QMainWindow>
 #include <QHash>
 #include <QString>
+#include <QTimer>
 #include <functional>
 #include "settings.h"
 #include "profile_store.h"
@@ -49,6 +50,12 @@ class MainWindow : public QMainWindow {
   void onUsbClientsChanged(const QList<UsbClient>& clients);
   void rebuildClientList();     // merge netDevices_ + usbClients_ into devicesList_
   void onConnectToSelectedDevice();
+  // Start a monitor for one specific device. quietIfBusy=true suppresses the
+  // "already connected"/"limit reached" popups (used by auto-connect). Returns
+  // true if a session was started.
+  bool connectDevice(const QString& key, const QString& label, const QString& transport,
+                     const QString& ident, quint16 wakePort, bool quietIfBusy);
+  void evaluateAutoConnect();   // pick + start auto-connect sessions from discovery
   void refreshAdvertising();    // (re)publish _droppix._tcp for the current port; idempotent
   bool minimizeToTrayRequested() const;   // reads the <config>/minimize_on_close marker
   void setupTray();             // create the tray icon + Show/Quit menu (if a tray exists)
@@ -85,6 +92,7 @@ class MainWindow : public QMainWindow {
   UsbClientScanner usbScanner_;
   QList<MdnsDevice> netDevices_;   // last network-discovered clients
   QList<UsbClient> usbClients_;    // last USB-discovered clients
+  QTimer autoConnectTimer_;   // debounces discovery bursts before auto-connecting
   QHash<QString, qint64> pendingWakes_;
   QString flatpakHostRuntime_;         // Flatpak: host dir the streamer runtime is staged to
   QString flatpakHostCert_, flatpakHostKey_;   // Flatpak: host cert/key paths for the streamer

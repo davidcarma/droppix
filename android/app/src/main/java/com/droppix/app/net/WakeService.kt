@@ -51,6 +51,7 @@ class WakeService(private val ctx: Context) {
             serviceName = DeviceIdentity.displayName(ctx)
             serviceType = SERVICE_TYPE
             port = localPort
+            setAttribute("id", DeviceIdentity.stableId(ctx))
         }
 
         val regListener = object : NsdManager.RegistrationListener {
