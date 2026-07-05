@@ -30,6 +30,8 @@ class WakeService(private val ctx: Context) {
 
     private var socket: DatagramSocket? = null
     private var receiveThread: Thread? = null
+    private var discoverySocket: DatagramSocket? = null
+    private var discoveryThread: Thread? = null
     private var registrationListener: NsdManager.RegistrationListener? = null
     private val running = AtomicBoolean(false)
 
@@ -46,6 +48,19 @@ class WakeService(private val ctx: Context) {
         }
         socket = sock
         val localPort = sock.localPort
+
+        val discSock = try { DatagramSocket(null).apply {
+            reuseAddress = true; bind(java.net.InetSocketAddress(TetherProbe.PORT))
+        } } catch (e: Exception) {
+            Log.w(TAG, "tether-discovery bind failed: ${e.message}"); null
+        }
+        discoverySocket = discSock
+        if (discSock != null) {
+            val name = DeviceIdentity.displayName(ctx)
+            val id = DeviceIdentity.stableId(ctx)
+            val t = Thread({ discoveryLoop(discSock, localPort, id, name) }, "TetherDiscovery-recv")
+            discoveryThread = t; t.start()
+        }
 
         val info = NsdServiceInfo().apply {
             serviceName = DeviceIdentity.displayName(ctx)
@@ -101,6 +116,10 @@ class WakeService(private val ctx: Context) {
         socket?.close()
         socket = null
 
+        discoverySocket?.close(); discoverySocket = null
+        discoveryThread?.let { if (it != Thread.currentThread()) try { it.join(1000) } catch (_: InterruptedException) {} }
+        discoveryThread = null
+
         val thread = receiveThread
         receiveThread = null
         if (thread != null && thread != Thread.currentThread()) {
@@ -135,6 +154,20 @@ class WakeService(private val ctx: Context) {
                         onWake(host, port)
                     }
                 }
+            }
+        }
+    }
+
+    private fun discoveryLoop(sock: DatagramSocket, wakePort: Int, id: String, name: String) {
+        val buf = ByteArray(64)
+        val pkt = DatagramPacket(buf, buf.size)
+        while (running.get()) {
+            try { sock.receive(pkt) } catch (e: SocketException) { break }
+              catch (e: Exception) { if (running.get()) Log.w(TAG, "discovery recv: ${e.message}"); break }
+            if (TetherProbe.isProbe(pkt.data, pkt.length)) {
+                val reply = TetherProbe.encodeReply(wakePort, id, name)
+                try { sock.send(DatagramPacket(reply, reply.size, pkt.address, pkt.port)) }
+                catch (e: Exception) { Log.w(TAG, "discovery reply: ${e.message}") }
             }
         }
     }
