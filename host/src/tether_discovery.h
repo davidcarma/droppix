@@ -16,6 +16,9 @@ inline bool is_probe(const std::vector<unsigned char>& b) {
 
 // Reply (tablet -> host): "DPXR" u16 wakePort(BE) u8 idLen id[] u8 nameLen name[].
 struct TetherReply { uint16_t wake_port = 0; std::string id; std::string name; };
+// encode_reply clamps id and name to 255 bytes each (the single-byte length prefix), so the
+// emitted payload always matches the declared length. Real ids/names (a UUID + Build.MODEL)
+// are far shorter; the Kotlin codec (TetherProbe) clamps identically to stay byte-compatible.
 std::vector<unsigned char> encode_reply(const TetherReply& r);
 bool decode_reply(const std::vector<unsigned char>& b, TetherReply& out);
 

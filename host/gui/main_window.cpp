@@ -252,7 +252,6 @@ MainWindow::MainWindow(QWidget* parent)
   // Unified "Available clients" list: network (mDNS) + USB-tether (UDP probe) sources.
   connect(&browser_, &MdnsBrowser::devicesChanged, this, &MainWindow::onDevicesChanged);
   connect(&tetherScanner_, &TetherScanner::clientsChanged, this, &MainWindow::onTetherClientsChanged);
-  // ... keep the browser_ wiring as-is ...
   connect(connectBtn_, &QPushButton::clicked, this, &MainWindow::onConnectToSelectedDevice);
   connect(devicesList_, &QListWidget::itemDoubleClicked, this,
           [this](QListWidgetItem*){ onConnectToSelectedDevice(); });
@@ -262,8 +261,7 @@ MainWindow::MainWindow(QWidget* parent)
   connect(&autoConnectTimer_, &QTimer::timeout, this, &MainWindow::evaluateAutoConnect);
 
   if (browser_.available()) browser_.start();
-  if (tetherScanner_.available()) tetherScanner_.start();
-  if (!browser_.available()) { /* tether always available; keep devicesBox_ visible */ }
+  tetherScanner_.start();   // always available (no external tool); keeps the devices list live
 
   refreshProfiles();
   restoreLastProfile();   // re-apply the profile that was in use last launch
@@ -408,7 +406,7 @@ void MainWindow::onConnectToSelectedDevice() {
   auto* item = devicesList_->currentItem();
   if (!item) return;
   const QString transport = item->data(Qt::UserRole).toString();
-  const QString ident = item->data(Qt::UserRole + 1).toString();   // serial (usb) / addr (net)
+  const QString ident = item->data(Qt::UserRole + 1).toString();   // net address (Wi-Fi or USB-tether)
   if (ident.isEmpty()) return;
   const QString key = transport + ":" + ident;
   const QString label = item->text();
