@@ -24,6 +24,12 @@ QSet<QString> SessionManager::keys() const {
   return k;
 }
 
+QSet<QString> SessionManager::ids() const {
+  QSet<QString> s;
+  for (const auto& x : sessions_) if (!x.id.isEmpty()) s.insert(x.id);
+  return s;
+}
+
 Session& SessionManager::add(const Session& s) {
   sessions_.append(s);
   return sessions_.last();

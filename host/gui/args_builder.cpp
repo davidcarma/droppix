@@ -37,7 +37,6 @@ Command build_command(const Settings& s, const std::string& stream_bin,
   }
 
   Command c;
-  c.needs_adb_reverse = s.auto_adb_reverse;
   if (s.source == Settings::Source::Evdi) {
     c.program = "pkexec";
     c.args.push_back(stream_bin);                 // pkexec <binary> <args...>

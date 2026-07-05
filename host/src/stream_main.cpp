@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   prctl(PR_SET_PDEATHSIG, SIGTERM);          // die if our parent (e.g. pkexec) is killed
   int port = 27000, fps = 30, bitrate = 8000, frames = 0;
   int width = 1920, height = 1080, refresh = 60;
-  bool test_pattern = false, adb_reverse = false, stats_json = false, touch = false;
+  bool test_pattern = false, stats_json = false, touch = false;
   std::string touch_name = "droppix-touch";   // uinput device name (unique per session for multi-monitor)
   bool approve = false;
   bool audio = false;
@@ -52,7 +52,6 @@ int main(int argc, char** argv) {
     auto val = [&]() { return (i + 1 < argc) ? std::atoi(argv[++i]) : 0; };
     auto sval = [&]() -> const char* { return (i + 1 < argc) ? argv[++i] : ""; };
     if (a == "--test-pattern") test_pattern = true;
-    else if (a == "--adb-reverse") adb_reverse = true;
     else if (a == "--stats-json") stats_json = true;
     else if (a == "--touch") touch = true;
     else if (a == "--touch-name") touch_name = sval();
@@ -91,14 +90,6 @@ int main(int argc, char** argv) {
   std::fprintf(stderr, "listening on port %d\n", tx.port());
 
   if (tls) tx.enable_tls(cert, key);
-
-  if (adb_reverse) {
-    std::string cmd = "adb reverse tcp:" + std::to_string(port) +
-                      " tcp:" + std::to_string(port);
-    std::fprintf(stderr, "running: %s\n", cmd.c_str());
-    if (std::system(cmd.c_str()) != 0)
-      std::fprintf(stderr, "warning: adb reverse failed\n");
-  }
 
   // Stop channel for the GUI: it launches us via pkexec as ROOT, so it cannot signal
   // us (terminate/kill -> EPERM) — PR_SET_PDEATHSIG only fires if the GUI itself exits.

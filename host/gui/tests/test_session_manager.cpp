@@ -41,3 +41,10 @@ TEST(SessionManager, KeysListsActiveKeys) {
   m.remove("a");
   EXPECT_EQ(m.keys(), (QSet<QString>{QString("b")}));
 }
+
+TEST(SessionManager, IdsListsNonEmptyIds) {
+  SessionManager m;
+  Session a; a.key = "net:1"; a.id = "dev-a"; m.add(a);
+  Session b; b.key = "net:2"; b.id = "";      m.add(b);   // no id -> not listed
+  EXPECT_EQ(m.ids(), (QSet<QString>{QString("dev-a")}));
+}

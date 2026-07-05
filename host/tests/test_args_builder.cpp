@@ -34,7 +34,6 @@ TEST(ArgsBuilder, TestPatternRunsBinaryDirectly) {
   EXPECT_TRUE(has(c.args, "--width")); EXPECT_TRUE(has(c.args, "1280"));
   EXPECT_TRUE(has(c.args, "--height")); EXPECT_TRUE(has(c.args, "720"));
   EXPECT_TRUE(has(c.args, "--stats-json"));
-  EXPECT_TRUE(c.needs_adb_reverse);  // auto_adb_reverse default true
 }
 
 TEST(ArgsBuilder, EvdiUsesPkexecWithModeFlags) {
@@ -76,11 +75,6 @@ TEST(ArgsBuilder, TestPatternNeverHasOrientation) {
   Settings s; s.source = Settings::Source::TestPattern; s.orientation = 180;
   Command c = build_command(s, "/path/droppix_stream");
   EXPECT_FALSE(has(c.args, "--orientation"));   // evdi-only
-}
-
-TEST(ArgsBuilder, AutoAdbReverseToggle) {
-  Settings s; s.auto_adb_reverse = false;
-  EXPECT_FALSE(build_command(s, "/x").needs_adb_reverse);
 }
 
 TEST(ArgsBuilder, EvdiHasApproveFlag) {
