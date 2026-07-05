@@ -35,7 +35,6 @@ add_library(droppix_core
   src/mt_slots.cpp
   src/tap_gesture.cpp
   src/mdns_browse.cpp
-  src/usb_scan.cpp
   src/audio_streamer.cpp
   src/tether_discovery.cpp
 )
@@ -67,11 +66,9 @@ if(Qt6_FOUND)
   target_sources(droppix_gui PRIVATE
     gui/profile_store.cpp
     gui/stream_controller.cpp
-    gui/adb_manager.cpp
     gui/mdns_advertiser.cpp
     gui/mdns_browser.cpp
     gui/tether_scanner.cpp
-    gui/usb_client_scanner.cpp
     gui/approved_store.cpp
     gui/cert_manager.cpp
     gui/audio_sink.cpp
@@ -81,7 +78,6 @@ if(Qt6_FOUND)
     gui/auto_connect.cpp
     gui/resources.qrc
     src/mdns_browse.cpp
-    src/usb_scan.cpp
     src/tether_discovery.cpp
   )
   target_link_libraries(droppix_gui PRIVATE OpenSSL::SSL OpenSSL::Crypto)
@@ -126,7 +122,6 @@ add_executable(droppix_tests
   tests/test_wake.cpp
   tests/test_tether_discovery.cpp
   tests/test_mdns_browse.cpp
-  tests/test_usb_scan.cpp
   tests/test_pairing_code.cpp
   tests/test_audio_sink.cpp
   gui/tests/test_port_alloc.cpp

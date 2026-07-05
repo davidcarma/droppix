@@ -8,10 +8,9 @@
 #include "profile_store.h"
 #include "stream_controller.h"
 #include "session_manager.h"
-#include "adb_manager.h"
 #include "mdns_advertiser.h"
 #include "mdns_browser.h"
-#include "usb_client_scanner.h"
+#include "tether_scanner.h"
 #include "approved_store.h"
 #include "cert_manager.h"
 #include "audio_sink.h"
@@ -35,9 +34,9 @@ class MainWindow : public QMainWindow {
   void applySettings(const Settings& s);
   void onStartStop();           // Start button -> spawn a session on the next free port
   // Spawn a streaming session: a new StreamController on `port`, wired, started, added to
-  // the Active-monitors panel; `directTablet` (may be empty) wakes/usb-connects the tablet.
+  // the Active-monitors panel; `directTablet` (may be empty) WAKEs the tablet to dial in.
   void startSession(const QString& key, const QString& label, const QString& transport,
-                    int port, std::function<void()> directTablet);
+                    int port, const QString& id, std::function<void()> directTablet);
   void wireSession(StreamController* c, const QString& key);
   void stopSelectedMonitor();   // stop the session selected in the Active-monitors list
   void updateStatus();          // status dot/text from session count + connectivity
@@ -47,14 +46,14 @@ class MainWindow : public QMainWindow {
   void setupAuth();              // install the polkit rule via one pkexec prompt
   void showAbout();             // Help -> About developer-info dialog
   void onDevicesChanged(const QList<MdnsDevice>& devices);
-  void onUsbClientsChanged(const QList<UsbClient>& clients);
-  void rebuildClientList();     // merge netDevices_ + usbClients_ into devicesList_
+  void onTetherClientsChanged(const QList<TetherClient>& clients);
+  void rebuildClientList();     // merge netDevices_ + tetherClients_ into devicesList_
   void onConnectToSelectedDevice();
   // Start a monitor for one specific device. quietIfBusy=true suppresses the
   // "already connected"/"limit reached" popups (used by auto-connect). Returns
   // true if a session was started.
   bool connectDevice(const QString& key, const QString& label, const QString& transport,
-                     const QString& ident, quint16 wakePort, bool quietIfBusy);
+                     const QString& ident, quint16 wakePort, const QString& id, bool quietIfBusy);
   void evaluateAutoConnect();   // pick + start auto-connect sessions from discovery
   void refreshAdvertising();    // (re)publish _droppix._tcp for the current port; idempotent
   bool minimizeToTrayRequested() const;   // reads the <config>/minimize_on_close marker
@@ -85,13 +84,12 @@ class MainWindow : public QMainWindow {
   CertManager cert_;
   DroppixAudioSink audioSink_;
   SessionManager sessions_;     // one session (= streamer = monitor) per connected tablet
-  AdbManager adb_;
   MdnsAdvertiser advertiser_;
   quint16 advertisedPort_ = 0;     // port currently published via _droppix._tcp (0 = none)
   MdnsBrowser browser_;
-  UsbClientScanner usbScanner_;
+  TetherScanner tetherScanner_;
   QList<MdnsDevice> netDevices_;   // last network-discovered clients
-  QList<UsbClient> usbClients_;    // last USB-discovered clients
+  QList<TetherClient> tetherClients_;   // last USB-tether-discovered clients
   QTimer autoConnectTimer_;   // debounces discovery bursts before auto-connecting
   QHash<QString, qint64> pendingWakes_;
   QString flatpakHostRuntime_;         // Flatpak: host dir the streamer runtime is staged to

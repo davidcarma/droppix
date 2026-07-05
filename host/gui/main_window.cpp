@@ -186,7 +186,7 @@ MainWindow::MainWindow(QWidget* parent)
   statusRow->addWidget(streamLabel_); statusRow->addStretch();
   statusRow->addWidget(statsLabel_);
   deviceLabel_ = new QLabel; deviceLabel_->setObjectName("caption");
-  deviceLabel_->hide();   // shown only to surface an adb hint (unauthorized / not found)
+  deviceLabel_->hide();   // reserved for a future discovery-status hint; unused for now
 
   // --- Start/Stop + log ---
   startBtn_ = new QPushButton("▶  Start streaming");
@@ -249,13 +249,10 @@ MainWindow::MainWindow(QWidget* parent)
   });
 
   // Per-session signal wiring happens in wireSession() when each session is created.
-  // Unified "Available clients" list: network (mDNS) + USB (adb) sources.
+  // Unified "Available clients" list: network (mDNS) + USB-tether (UDP probe) sources.
   connect(&browser_, &MdnsBrowser::devicesChanged, this, &MainWindow::onDevicesChanged);
-  connect(&usbScanner_, &UsbClientScanner::clientsChanged, this, &MainWindow::onUsbClientsChanged);
-  connect(&usbScanner_, &UsbClientScanner::statusChanged, this, [this](const QString& s){
-    deviceLabel_->setText(s);
-    deviceLabel_->setVisible(!s.isEmpty());   // hide when there's nothing to say
-  });
+  connect(&tetherScanner_, &TetherScanner::clientsChanged, this, &MainWindow::onTetherClientsChanged);
+  // ... keep the browser_ wiring as-is ...
   connect(connectBtn_, &QPushButton::clicked, this, &MainWindow::onConnectToSelectedDevice);
   connect(devicesList_, &QListWidget::itemDoubleClicked, this,
           [this](QListWidgetItem*){ onConnectToSelectedDevice(); });
@@ -265,8 +262,8 @@ MainWindow::MainWindow(QWidget* parent)
   connect(&autoConnectTimer_, &QTimer::timeout, this, &MainWindow::evaluateAutoConnect);
 
   if (browser_.available()) browser_.start();
-  if (usbScanner_.available()) usbScanner_.start();
-  if (!browser_.available() && !usbScanner_.available()) devicesBox_->hide();
+  if (tetherScanner_.available()) tetherScanner_.start();
+  if (!browser_.available()) { /* tether always available; keep devicesBox_ visible */ }
 
   refreshProfiles();
   restoreLastProfile();   // re-apply the profile that was in use last launch
@@ -370,26 +367,27 @@ void MainWindow::onDevicesChanged(const QList<MdnsDevice>& devices) {
   autoConnectTimer_.start();   // (re)arm the debounced auto-connect evaluation
 }
 
-void MainWindow::onUsbClientsChanged(const QList<UsbClient>& clients) {
-  usbClients_ = clients;
+void MainWindow::onTetherClientsChanged(const QList<TetherClient>& clients) {
+  tetherClients_ = clients;
   rebuildClientList();
   autoConnectTimer_.start();   // (re)arm the debounced auto-connect evaluation
 }
 
-// Repopulates the unified list from both sources (USB first, then network),
-// tagging each item with its transport + connect payload and preserving the
-// prior selection by label. Roles: UserRole = transport ("usb"/"net");
-// UserRole+1 = usb serial OR net address; UserRole+2 = net wake port;
-// UserRole+3 = net TXT id (net items only).
+// Repopulates the unified list from both sources (USB-tether first, then mDNS/network) —
+// both connect via the net/WAKE path, tagging each item with its connect payload and
+// preserving the prior selection by label. Roles: UserRole = transport (always "net");
+// UserRole+1 = net address; UserRole+2 = net wake port; UserRole+3 = device id.
 void MainWindow::rebuildClientList() {
   const QString prevSelected = devicesList_->currentItem()
       ? devicesList_->currentItem()->text() : QString();
   devicesList_->clear();
 
-  for (const auto& c : usbClients_) {
-    auto* item = new QListWidgetItem(QString("%1 — USB").arg(c.model));
-    item->setData(Qt::UserRole, "usb");
-    item->setData(Qt::UserRole + 1, c.serial);
+  for (const auto& t : tetherClients_) {
+    auto* item = new QListWidgetItem(QString("%1 — USB").arg(t.name));
+    item->setData(Qt::UserRole, "net");                 // connects via WAKE like Wi-Fi
+    item->setData(Qt::UserRole + 1, t.address);
+    item->setData(Qt::UserRole + 2, (uint)t.wakePort);
+    item->setData(Qt::UserRole + 3, t.id);
     devicesList_->addItem(item);
     if (item->text() == prevSelected) devicesList_->setCurrentItem(item);
   }
@@ -414,64 +412,50 @@ void MainWindow::onConnectToSelectedDevice() {
   if (ident.isEmpty()) return;
   const QString key = transport + ":" + ident;
   const QString label = item->text();
+  const QString id = item->data(Qt::UserRole + 3).toString();
   const quint16 wakePort = (quint16)item->data(Qt::UserRole + 2).toUInt();
-  connectDevice(key, label, transport, ident, wakePort, /*quietIfBusy=*/false);
+  connectDevice(key, label, transport, ident, wakePort, id, /*quietIfBusy=*/false);
 }
 
 bool MainWindow::connectDevice(const QString& key, const QString& label, const QString& transport,
-                               const QString& ident, quint16 wakePort, bool quietIfBusy) {
-  if (sessions_.has(key)) {
-    if (!quietIfBusy)
-      QMessageBox::information(this, "Droppix", "That device already has an active monitor.");
+                               const QString& ident, quint16 wakePort, const QString& id,
+                               bool quietIfBusy) {
+  if (sessions_.has(key) || (!id.isEmpty() && sessions_.ids().contains(id))) {
+    if (!quietIfBusy) QMessageBox::information(this, "Droppix", "That device already has an active monitor.");
     return false;
   }
   const int port = sessions_.allocatePort(collectSettings().port);
-  if (port < 0) {
-    if (!quietIfBusy) QMessageBox::information(this, "Droppix", "Monitor limit reached (4).");
-    return false;
-  }
-  std::function<void()> direct;
-  if (transport == "usb") {
-    const QString serial = ident;
-    direct = [this, serial, port]{ adb_.usbConnect(serial, port); };   // adb reverse + launch app
-  } else {
-    const QString addr = ident;
-    direct = [this, addr, wakePort, port]{   // WAKE the tablet, which then dials this port
-      auto bytes = encode_wake((uint16_t)port);
-      QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
-      pendingWakes_[addr] = QDateTime::currentMSecsSinceEpoch();
-      QUdpSocket sock;
-      sock.writeDatagram(dg, QHostAddress(addr), wakePort);
-    };
-  }
-  startSession(key, label, transport, port, direct);
+  if (port < 0) { if (!quietIfBusy) QMessageBox::information(this, "Droppix", "Monitor limit reached (4)."); return false; }
+  const QString addr = ident;
+  auto direct = [this, addr, wakePort, port]{
+    auto bytes = encode_wake((uint16_t)port);
+    QByteArray dg(reinterpret_cast<const char*>(bytes.data()), (int)bytes.size());
+    pendingWakes_[addr] = QDateTime::currentMSecsSinceEpoch();
+    QUdpSocket sock; sock.writeDatagram(dg, QHostAddress(addr), wakePort);
+  };
+  startSession(key, label, transport, port, id, direct);
   return true;
 }
 
 void MainWindow::evaluateAutoConnect() {
   if (!collectSettings().autoConnect) return;
-
   QList<AutoConnectCandidate> cands;
-  for (const auto& c : usbClients_)
-    cands.push_back({QString("usb:") + c.serial, /*eligible=*/true});
-  for (const auto& d : netDevices_) {
-    const QString id = QString::fromStdString(d.id);
-    const QString addr = QString::fromStdString(d.address);
-    cands.push_back({QString("net:") + addr, !id.isEmpty() && approved_.isApproved(id)});
+  for (int i = 0; i < devicesList_->count(); ++i) {
+    auto* it = devicesList_->item(i);
+    const QString addr = it->data(Qt::UserRole + 1).toString();
+    const QString id = it->data(Qt::UserRole + 3).toString();
+    cands.push_back({QString("net:") + addr, id, !id.isEmpty() && approved_.isApproved(id)});
   }
-
-  const QList<QString> toConnect = devicesToConnect(true, cands, sessions_.keys());
+  const QList<QString> toConnect = devicesToConnect(true, cands, sessions_.keys(), sessions_.ids());
   for (const QString& key : toConnect) {
-    if (key.startsWith("usb:")) {
-      const QString serial = key.mid(4);
-      connectDevice(key, serial + " — USB", "usb", serial, 0, /*quietIfBusy=*/true);
-    } else {  // "net:"
-      const QString addr = key.mid(4);
-      auto it = std::find_if(netDevices_.begin(), netDevices_.end(),
-          [&](const MdnsDevice& d){ return QString::fromStdString(d.address) == addr; });
-      if (it == netDevices_.end()) continue;
-      const QString label = QString("%1 — %2").arg(QString::fromStdString(it->name), addr);
-      connectDevice(key, label, "net", addr, it->port, /*quietIfBusy=*/true);
+    const QString addr = key.mid(4);
+    for (int i = 0; i < devicesList_->count(); ++i) {
+      auto* it = devicesList_->item(i);
+      if (it->data(Qt::UserRole + 1).toString() != addr) continue;
+      connectDevice(key, it->text(), "net", addr,
+                    (quint16)it->data(Qt::UserRole + 2).toUInt(),
+                    it->data(Qt::UserRole + 3).toString(), /*quietIfBusy=*/true);
+      break;
     }
   }
 }
@@ -613,27 +597,26 @@ void MainWindow::showAbout() {
 
 void MainWindow::onStartStop() {
   // Start a session on the next free port for a tablet that will connect on its own
-  // (USB via adb-reverse, or a tablet dialing in). Additional monitors come via Connect.
+  // (over USB-tether or Wi-Fi, both via WAKE). Additional monitors come via Connect.
   const int port = sessions_.allocatePort(collectSettings().port);
   if (port < 0) { QMessageBox::information(this, "Droppix", "Monitor limit reached (4)."); return; }
-  startSession(QString("waiting:%1").arg(port), "Waiting for a tablet…", QString(), port, {});
+  startSession(QString("waiting:%1").arg(port), "Waiting for a tablet…", QString(), port, QString(), {});
 }
 
 void MainWindow::startSession(const QString& key, const QString& label, const QString& transport,
-                              int port, std::function<void()> directTablet) {
+                              int port, const QString& id, std::function<void()> directTablet) {
   auto* c = new StreamController(this);
   wireSession(c, key);
   Settings s = collectSettings();
   if (sessions_.count() > 0) s.audio = false;   // audio single-session (shared droppix-audio sink)
   const std::string tname = ("droppix-touch-" + QString::number(port)).toStdString();
   Command cmd = build_command(s, streamBin_, port, tname);
-  if (cmd.needs_adb_reverse) adb_.setupReverse(port);
   qInfo("$ %s ... (:%d)", cmd.program.c_str(), port);
   c->start(cmd);
 
   Session sess;
   sess.controller = c; sess.port = port; sess.key = key; sess.label = label;
-  sess.transport = transport; sess.touchName = QString::fromStdString(tname);
+  sess.transport = transport; sess.id = id; sess.touchName = QString::fromStdString(tname);
   sessions_.add(sess);
 
   auto* row = new QListWidgetItem(
@@ -722,7 +705,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   for (auto& s : sessions_.list()) if (s.controller) s.controller->stop();  // don't orphan streamers
   advertiser_.stop();
   browser_.stop();
-  usbScanner_.stop();
+  tetherScanner_.stop();
   QMainWindow::closeEvent(event);
 }
 }  // namespace droppix
