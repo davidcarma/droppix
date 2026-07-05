@@ -19,23 +19,33 @@ class AoaEchoActivity : Activity() {
         val acc: UsbAccessory? =
             intent.getParcelableExtra(UsbManager.EXTRA_ACCESSORY) ?: mgr.accessoryList?.firstOrNull()
         if (acc == null) { Log.w("aoa-echo", "no accessory"); finish(); return }
-        val pfd = mgr.openAccessory(acc)
-        if (pfd == null) { Log.w("aoa-echo", "openAccessory returned null"); finish(); return }
-        Log.i("aoa-echo", "accessory opened; echoing")
         thread(name = "aoa-echo") {
-            val fis = FileInputStream(pfd.fileDescriptor)
-            val fos = FileOutputStream(pfd.fileDescriptor)
+            // The host is still claiming the interface when we first open, which can EIO the
+            // device pipe. Retry open+echo a few times so we ride past that setup race.
             val buf = ByteArray(16384)
-            try {
-                while (true) {
-                    val n = fis.read(buf)
-                    if (n < 0) break
-                    fos.write(buf, 0, n); fos.flush()
+            var attempt = 0
+            while (attempt < 20) {
+                attempt++
+                val pfd = mgr.openAccessory(acc)
+                if (pfd == null) { Thread.sleep(200); continue }
+                Log.i("aoa-echo", "accessory opened (attempt $attempt); echoing")
+                var moved = false
+                try {
+                    val fis = FileInputStream(pfd.fileDescriptor)
+                    val fos = FileOutputStream(pfd.fileDescriptor)
+                    while (true) {
+                        val n = fis.read(buf)
+                        if (n < 0) break
+                        fos.write(buf, 0, n); fos.flush()
+                        moved = true
+                    }
+                    break  // clean EOF: host finished
+                } catch (e: Exception) {
+                    Log.w("aoa-echo", "echo attempt $attempt ended: ${e.message}")
+                    try { pfd.close() } catch (_: Exception) {}
+                    if (moved) break     // real data flowed then ended — done
+                    Thread.sleep(200)    // errored before any data — retry
                 }
-            } catch (e: Exception) {
-                Log.w("aoa-echo", "echo ended: ${e.message}")
-            } finally {
-                try { pfd.close() } catch (_: Exception) {}
             }
         }
     }

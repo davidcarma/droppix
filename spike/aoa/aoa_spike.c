@@ -90,6 +90,11 @@ int main(void) {
   printf("bulk endpoints: IN=0x%02x OUT=0x%02x\n", ep_in, ep_out);
   if (!ep_in || !ep_out) { fprintf(stderr, "missing bulk endpoints\n"); return 1; }
 
+  // give the Android app a moment to receive the accessory-attached intent, launch, and
+  // start reading/echoing before we measure — else the first bulk transfer races it.
+  { struct timespec ready = {2, 0}; nanosleep(&ready, NULL); }
+  printf("starting echo/throughput test...\n");
+
   // 5) echo + throughput: send 8 MB in 16 KB chunks, read the echo back, verify + time.
   const int CHUNK = 16384, TOTAL = 8 * 1024 * 1024;
   unsigned char* out = malloc(CHUNK), *in = malloc(CHUNK);
