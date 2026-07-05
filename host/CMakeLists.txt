@@ -26,6 +26,7 @@ add_library(droppix_core
   src/test_pattern_source.cpp
   src/evdi_frame_source.cpp
   src/transport_server.cpp
+  src/socket_channel.cpp
   src/stream_daemon.cpp
   src/stat_accumulator.cpp
   src/stats_json.cpp
@@ -107,6 +108,7 @@ add_executable(droppix_tests
   tests/test_software_encoder.cpp
   tests/test_test_pattern_source.cpp
   tests/test_transport_server.cpp
+  tests/test_socket_channel.cpp
   tests/test_stat_accumulator.cpp
   tests/test_stats_json.cpp
   tests/test_stats_parser.cpp
