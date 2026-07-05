@@ -70,6 +70,7 @@ if(Qt6_FOUND)
     gui/adb_manager.cpp
     gui/mdns_advertiser.cpp
     gui/mdns_browser.cpp
+    gui/tether_scanner.cpp
     gui/usb_client_scanner.cpp
     gui/approved_store.cpp
     gui/cert_manager.cpp
@@ -81,6 +82,7 @@ if(Qt6_FOUND)
     gui/resources.qrc
     src/mdns_browse.cpp
     src/usb_scan.cpp
+    src/tether_discovery.cpp
   )
   target_link_libraries(droppix_gui PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 else()
