@@ -37,6 +37,7 @@ add_library(droppix_core
   src/mdns_browse.cpp
   src/usb_scan.cpp
   src/audio_streamer.cpp
+  src/tether_discovery.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -121,6 +122,7 @@ add_executable(droppix_tests
   tests/test_audio_streamer.cpp
   tests/test_approval.cpp
   tests/test_wake.cpp
+  tests/test_tether_discovery.cpp
   tests/test_mdns_browse.cpp
   tests/test_usb_scan.cpp
   tests/test_pairing_code.cpp
