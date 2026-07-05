@@ -16,6 +16,7 @@ struct Session {
   QString key;         // client identity (id / ip / adb serial) — one session per key
   QString label;       // display name
   QString transport;   // "usb" | "net"
+  QString id;          // tablet device id (cross-transport identity; may be empty)
 };
 
 // Bookkeeping for the set of live sessions. No Qt event handling — pure container logic,
@@ -26,6 +27,7 @@ class SessionManager {
   Session* find(const QString& key);            // nullptr if none
   std::set<int> usedPorts() const;
   QSet<QString> keys() const;   // keys of all active sessions
+  QSet<QString> ids() const;    // non-empty device ids of active sessions
   int allocatePort(int base) const { return allocate_port(base, usedPorts()); }
   int count() const { return static_cast<int>(sessions_.size()); }
   Session& add(const Session& s);               // appends; ref valid until the next mutation
