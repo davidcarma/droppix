@@ -380,10 +380,12 @@ void MainWindow::onAoaClientsChanged(const QList<AoaClient>& clients) {
   autoConnectTimer_.start();   // (re)arm the debounced auto-connect evaluation
 }
 
-// Repopulates the unified list from both sources (USB-tether first, then mDNS/network) —
-// both connect via the net/WAKE path, tagging each item with its connect payload and
-// preserving the prior selection by label. Roles: UserRole = transport (always "net");
-// UserRole+1 = net address; UserRole+2 = net wake port; UserRole+3 = device id.
+// Repopulates the unified list from three sources (USB-tether first, then USB-AOA, then
+// mDNS/network), tagging each item with its connect payload and preserving the prior
+// selection by label. A row's transport (UserRole) is "net" (USB-tether + Wi-Fi connect
+// over the net/WAKE path) or "usb-aoa" (streams over the cable, no WAKE). Roles:
+// UserRole = transport; UserRole+1 = ident (net address, or AOA serial);
+// UserRole+2 = net wake port (0 for AOA); UserRole+3 = id (device id, or AOA serial).
 void MainWindow::rebuildClientList() {
   const QString prevSelected = devicesList_->currentItem()
       ? devicesList_->currentItem()->text() : QString();
@@ -398,11 +400,21 @@ void MainWindow::rebuildClientList() {
     devicesList_->addItem(item);
     if (item->text() == prevSelected) devicesList_->setCurrentItem(item);
   }
+  // Count display names among listable AOA tablets so identical-model duplicates can be
+  // disambiguated by a serial tail (two "Nexus 10 — USB" rows would otherwise be identical).
+  QHash<QString, int> aoaNameCount;
+  for (const auto& a : aoaClients_) {
+    if (a.accessoryMode) continue;
+    aoaNameCount[a.product.isEmpty() ? a.serial : a.product]++;
+  }
   for (const auto& a : aoaClients_) {
     if (a.accessoryMode) continue;                    // owned-by-session / transient
     if (sessions_.has("usb-aoa:" + a.serial)) continue;  // already streaming this tablet
     const QString name = a.product.isEmpty() ? a.serial : a.product;
-    auto* item = new QListWidgetItem(QString("%1 — USB").arg(name));
+    const QString label = aoaNameCount.value(name) > 1
+        ? QString("%1 — USB (%2)").arg(name, a.serial.right(6))   // duplicate model: add serial tail
+        : QString("%1 — USB").arg(name);
+    auto* item = new QListWidgetItem(label);
     item->setData(Qt::UserRole, "usb-aoa");
     item->setData(Qt::UserRole + 1, a.serial);        // ident = serial
     item->setData(Qt::UserRole + 2, (uint)0);         // no wake port
@@ -739,6 +751,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   advertiser_.stop();
   browser_.stop();
   tetherScanner_.stop();
+  aoaScanner_.stop();
   QMainWindow::closeEvent(event);
 }
 }  // namespace droppix

@@ -50,7 +50,7 @@ class MainWindow : public QMainWindow {
   void onDevicesChanged(const QList<MdnsDevice>& devices);
   void onTetherClientsChanged(const QList<TetherClient>& clients);
   void onAoaClientsChanged(const QList<AoaClient>& clients);
-  void rebuildClientList();     // merge netDevices_ + tetherClients_ into devicesList_
+  void rebuildClientList();     // merge tetherClients_ + aoaClients_ + netDevices_ into devicesList_
   void onConnectToSelectedDevice();
   // Start a monitor for one specific device. quietIfBusy=true suppresses the
   // "already connected"/"limit reached" popups (used by auto-connect). Returns
