@@ -6,10 +6,7 @@
 #include "orientation.h"
 #include "audio_streamer.h"
 #include <chrono>
-#include <cctype>
 #include <cstdio>
-#include <cstdlib>
-#include <pwd.h>
 #include <string>
 #include <thread>
 

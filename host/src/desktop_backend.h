@@ -36,7 +36,7 @@ class KWinBackend : public DesktopBackend {
 };
 
 // Unknown/unsupported compositor: display still works (evdi is compositor-driven);
-// outputs() returns {} and map_touch() logs and no-ops.
+// outputs() returns {} and map_touch() logs a warning and no-ops.
 class GenericBackend : public DesktopBackend {
  public:
   const char* name() const override { return "generic"; }

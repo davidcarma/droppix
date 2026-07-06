@@ -47,7 +47,7 @@ std::vector<OutputInfo> KWinBackend::outputs() {
 // objects). Retries while KWin registers the new uinput device.
 void KWinBackend::map_touch(const std::string& output_name, const std::string& touch_name) {
   if (!safe_output_name(output_name)) return;
-  if (!safe_output_name(touch_name)) return;
+  if (!safe_output_name(touch_name)) return;   // shell-injected into the sh -c string below; the allowlist matters
   const std::string inner =
       "QD=; for q in qdbus6 qdbus-qt6 qdbus; do command -v \"$q\" >/dev/null 2>&1 && QD=$q && break; done; "
       "[ -z \"$QD\" ] && { echo \"[touch-bind] no qdbus available\" >&2; exit 0; }; "
@@ -70,6 +70,7 @@ void KWinBackend::map_touch(const std::string& output_name, const std::string& t
   std::system(cmd.c_str());
 }
 
+// Unsupported compositor: logs a warning and no-ops (display still works via evdi).
 void GenericBackend::map_touch(const std::string& output, const std::string& touch_dev) {
   (void)output; (void)touch_dev;
   std::fprintf(stderr, "input: touch-to-output mapping not supported on this desktop yet; "
@@ -86,16 +87,23 @@ BackendKind select_backend_kind(const std::string& xdg_current_desktop, bool has
 }
 
 std::shared_ptr<DesktopBackend> make_desktop_backend() {
-  const char* xdg = std::getenv("XDG_CURRENT_DESKTOP");
-  const std::string desktop = xdg ? xdg : "";
-  const bool has_kscreen = std::system("command -v kscreen-doctor >/dev/null 2>&1") == 0;
-  std::shared_ptr<DesktopBackend> b;
-  if (select_backend_kind(desktop, has_kscreen) == BackendKind::KWin)
-    b = std::make_shared<KWinBackend>();
-  else
-    b = std::make_shared<GenericBackend>();
-  std::fprintf(stderr, "desktop backend: %s\n", b->name());
-  return b;
+  // Detect once per process: the daemon is reconstructed every session (orientation
+  // flips, reconnects), and the backends are stateless, so one shared instance is safe
+  // across sessions (incl. concurrent multi-monitor) and avoids re-forking `command -v`
+  // + re-logging the "desktop backend:" line on every session.
+  static std::shared_ptr<DesktopBackend> cached = []{
+    const char* xdg = std::getenv("XDG_CURRENT_DESKTOP");
+    const std::string desktop = xdg ? xdg : "";
+    const bool has_kscreen = std::system("command -v kscreen-doctor >/dev/null 2>&1") == 0;
+    std::shared_ptr<DesktopBackend> b;
+    if (select_backend_kind(desktop, has_kscreen) == BackendKind::KWin)
+      b = std::make_shared<KWinBackend>();
+    else
+      b = std::make_shared<GenericBackend>();
+    std::fprintf(stderr, "desktop backend: %s\n", b->name());
+    return b;
+  }();
+  return cached;
 }
 
 }  // namespace droppix
