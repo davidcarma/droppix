@@ -97,7 +97,10 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // (finds nothing for the test-pattern source, which has no droppix output).
   std::vector<OutputInfo> before_outputs = parse_kscreen_outputs(run_kscreen());
 
-  if (!tx_.accept_client(60000)) { std::fprintf(stderr, "no client\n"); return false; }
+  // AOA: the caller already adopted a ByteChannel (USB accessory), so skip the TCP accept.
+  if (!cfg_.preconnected) {
+    if (!tx_.accept_client(60000)) { std::fprintf(stderr, "no client\n"); return false; }
+  }
   // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
   // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
   std::fprintf(stderr, "client-connecting ip=%s\n", tx_.peer_ip().c_str());

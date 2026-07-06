@@ -40,6 +40,7 @@ add_library(droppix_core
   src/audio_streamer.cpp
   src/tether_discovery.cpp
   src/aoa_channel.cpp
+  src/aoa_connect.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src

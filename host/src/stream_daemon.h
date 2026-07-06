@@ -26,6 +26,7 @@ struct StreamConfig {
   bool overlay = false;        // initial: tell the app to show its RTT/fps/decode overlay
   std::atomic<int>* live_overlay = nullptr;  // host-side toggle (GUI "overlay N" on stdin);
                                              // the loop pushes OVERLAY when this changes
+  bool preconnected = false;   // AOA: caller already adopted a ByteChannel; skip accept_client
 };
 
 class StreamDaemon {
