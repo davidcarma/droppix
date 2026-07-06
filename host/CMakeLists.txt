@@ -41,6 +41,7 @@ add_library(droppix_core
   src/tether_discovery.cpp
   src/aoa_channel.cpp
   src/aoa_connect.cpp
+  src/aoa_scan.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -129,6 +130,7 @@ add_executable(droppix_tests
   tests/test_mdns_browse.cpp
   tests/test_pairing_code.cpp
   tests/test_audio_sink.cpp
+  tests/test_aoa_scan.cpp
   gui/tests/test_port_alloc.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
