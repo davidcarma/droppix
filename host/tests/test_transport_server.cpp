@@ -2,11 +2,62 @@
 #include <thread>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cstring>
+#include <memory>
 #include "transport_server.h"
+#include "byte_channel.h"
 #include "protocol.h"
 
 using namespace droppix;
+
+namespace {
+// In-memory ByteChannel: preload bytes recv() hands out; capture bytes send_all() writes.
+class FakeChannel : public droppix::ByteChannel {
+ public:
+  std::vector<unsigned char> to_recv;   // bytes recv() returns, FIFO
+  std::vector<unsigned char> sent;      // bytes send_all() captured
+  size_t rpos = 0;
+  ssize_t recv(void* buf, size_t n) override {
+    size_t avail = to_recv.size() - rpos;
+    if (avail == 0) return 0;
+    size_t k = std::min(n, avail);
+    std::memcpy(buf, to_recv.data() + rpos, k);
+    rpos += k;
+    return static_cast<ssize_t>(k);
+  }
+  bool send_all(const unsigned char* p, size_t n) override {
+    sent.insert(sent.end(), p, p + n);
+    return true;
+  }
+  bool wait_readable(int) override { return rpos < to_recv.size(); }
+  bool connected() const override { return true; }
+  void close() override {}
+};
+}  // namespace
+
+TEST(TransportServer, FramingOverFakeChannel) {
+  TransportServer s;
+  auto fake = std::make_unique<FakeChannel>();
+  FakeChannel* fp = fake.get();
+  // preload a HELLO for read_hello to parse
+  fp->to_recv = encode_message(
+      MsgType::Hello, encode_hello(kProtocolVersion, 800, 600, 200, "Fake", "fid"));
+  s.adopt_channel(std::move(fake), "test");
+
+  uint32_t ver, w, h, d; std::string name, id;
+  ASSERT_TRUE(s.read_hello(ver, w, h, d, name, id, 0));
+  EXPECT_EQ(ver, kProtocolVersion);
+  EXPECT_EQ(w, 800u); EXPECT_EQ(h, 600u);
+  EXPECT_EQ(name, "Fake"); EXPECT_EQ(id, "fid");
+
+  // send_video must push framed bytes into the fake's sent buffer, decodable back.
+  ASSERT_TRUE(s.send_video(42, true, {0x65}));
+  MessageParser p; ParsedMessage m;
+  p.feed(fp->sent.data(), fp->sent.size());
+  ASSERT_TRUE(p.next(m));
+  EXPECT_EQ(m.type, MsgType::Video);
+}
 
 // Minimal in-test client: connect, send HELLO, read one CONFIG + one VIDEO.
 static void client_thread(uint16_t port, bool* ok) {

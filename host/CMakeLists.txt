@@ -11,6 +11,7 @@ message(STATUS "Using libevdi: ${EVDI_LIB}")
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libswscale)
+pkg_check_modules(LIBUSB REQUIRED IMPORTED_TARGET libusb-1.0)  # AOA USB transport
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
@@ -26,6 +27,7 @@ add_library(droppix_core
   src/test_pattern_source.cpp
   src/evdi_frame_source.cpp
   src/transport_server.cpp
+  src/socket_channel.cpp
   src/stream_daemon.cpp
   src/stat_accumulator.cpp
   src/stats_json.cpp
@@ -37,13 +39,15 @@ add_library(droppix_core
   src/mdns_browse.cpp
   src/audio_streamer.cpp
   src/tether_discovery.cpp
+  src/aoa_channel.cpp
+  src/aoa_connect.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
   third_party/evdi
   third_party/stb
 )
-target_link_libraries(droppix_core PUBLIC ${EVDI_LIB} PkgConfig::FFMPEG OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(droppix_core PUBLIC ${EVDI_LIB} PkgConfig::FFMPEG PkgConfig::LIBUSB OpenSSL::SSL OpenSSL::Crypto)
 
 add_executable(droppix_spike src/spike_main.cpp)
 target_link_libraries(droppix_spike PRIVATE droppix_core)
@@ -107,6 +111,7 @@ add_executable(droppix_tests
   tests/test_software_encoder.cpp
   tests/test_test_pattern_source.cpp
   tests/test_transport_server.cpp
+  tests/test_socket_channel.cpp
   tests/test_stat_accumulator.cpp
   tests/test_stats_json.cpp
   tests/test_stats_parser.cpp

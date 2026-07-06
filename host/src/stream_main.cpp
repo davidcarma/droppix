@@ -13,6 +13,7 @@
 #include "evdi_frame_source.h"
 #include "software_encoder.h"
 #include "approval.h"
+#include "aoa_connect.h"
 
 static volatile std::sig_atomic_t g_stop = 0;
 static void on_sigint(int) { g_stop = 1; }
@@ -44,6 +45,7 @@ int main(int argc, char** argv) {
   bool overlay = false;
   bool tls = false;
   std::string cert, key;
+  std::string usb_aoa;   // --usb-aoa <serial>: serve one tablet over USB (AOA), not TCP
   int mx = 0, my = 0, mw = 0, mh = 0, dtw = 0, dth = 0;  // --monitor / --desktop
   int orientation = 0;                                   // --orientation 0/90/180/270
 
@@ -71,6 +73,7 @@ int main(int argc, char** argv) {
     else if (a == "--key") key = sval();
     else if (a == "--audio") audio = true;
     else if (a == "--overlay") overlay = true;
+    else if (a == "--usb-aoa") usb_aoa = sval();
     else { std::fprintf(stderr, "unknown arg: %s\n", a.c_str()); return 2; }
   }
 
@@ -84,12 +87,17 @@ int main(int argc, char** argv) {
   g_overlay.store(overlay ? 1 : 0);   // seed the live toggle from the start-up flag
 
   droppix::TransportServer tx;
-  if (!tx.listen(static_cast<uint16_t>(port))) {
-    std::fprintf(stderr, "listen on %d failed\n", port); return 1;
+  // AOA (--usb-aoa) serves one tablet over the USB cable, not TCP: no listen, no TLS (the
+  // physical cable is the trust boundary). Otherwise, listen on the TCP port as usual.
+  if (usb_aoa.empty()) {
+    if (!tx.listen(static_cast<uint16_t>(port))) {
+      std::fprintf(stderr, "listen on %d failed\n", port); return 1;
+    }
+    std::fprintf(stderr, "listening on port %d\n", tx.port());
+    if (tls) tx.enable_tls(cert, key);
+  } else {
+    std::fprintf(stderr, "usb-aoa mode: serial=%s\n", usb_aoa.c_str());
   }
-  std::fprintf(stderr, "listening on port %d\n", tx.port());
-
-  if (tls) tx.enable_tls(cert, key);
 
   // Stop channel for the GUI: it launches us via pkexec as ROOT, so it cannot signal
   // us (terminate/kill -> EPERM) — PR_SET_PDEATHSIG only fires if the GUI itself exits.
@@ -135,10 +143,21 @@ int main(int argc, char** argv) {
 
   // Reconnect loop: keep serving sessions until SIGINT. One-shot when --frames>0.
   while (!g_stop) {
+    // AOA: run the accessory handshake and adopt the USB channel before streaming; retry
+    // until the tablet is plugged in + the app opens the accessory.
+    if (!usb_aoa.empty()) {
+      auto ch = droppix::aoa_connect(usb_aoa);
+      if (!ch) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        continue;
+      }
+      tx.adopt_channel(std::move(ch));
+    }
     droppix::SoftwareEncoder enc;
     droppix::StreamDaemon daemon(make_source, enc, tx,
         {fps, bitrate, stats_json, touch, touch_name, droppix::Rect{mx, my, mw, mh}, dtw, dth,
-         orientation, &g_orientation, approve, &g_gate, audio, overlay, &g_overlay});
+         orientation, &g_orientation, approve, &g_gate, audio, overlay, &g_overlay,
+         /*preconnected=*/!usb_aoa.empty()});
     daemon.run_until(g_stop, frames);
     if (frames > 0) break;  // one-shot (test) mode exits after a single session
   }
