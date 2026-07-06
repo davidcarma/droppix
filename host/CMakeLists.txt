@@ -82,9 +82,11 @@ if(Qt6_FOUND)
     gui/session_manager.cpp
     gui/auto_connect.cpp
     gui/aoa_known_store.cpp
+    gui/aoa_scanner.cpp
     gui/resources.qrc
     src/mdns_browse.cpp
     src/tether_discovery.cpp
+    src/aoa_scan.cpp
   )
   target_link_libraries(droppix_gui PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 else()
