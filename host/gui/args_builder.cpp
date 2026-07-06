@@ -23,7 +23,8 @@ Command build_command(const Settings& s, const std::string& stream_bin,
     if (s.orientation != 0) {              // rotate the droppix output (evdi only)
       a.push_back("--orientation"); a.push_back(std::to_string(s.orientation));
     }
-    a.push_back("--approve");  // host-side approval dialog gates non-localhost peers
+    if (usb_aoa_serial.empty())
+      a.push_back("--approve");  // gates non-localhost Wi-Fi peers; AOA (cable) is trusted, no approval
   }
   a.push_back("--fps");     a.push_back(std::to_string(s.fps));
   a.push_back("--bitrate"); a.push_back(std::to_string(s.bitrate_kbps));

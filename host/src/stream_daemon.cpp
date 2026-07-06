@@ -30,7 +30,10 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   if (!tx_.read_hello(cver, cw, ch, density, cname, cid, 10000)) { std::fprintf(stderr, "no HELLO\n"); return false; }
   std::fprintf(stderr, "client HELLO v%u %ux%u name=%s id=%s\n", cver, cw, ch, cname.c_str(), cid.c_str());
 
-  if (cfg_.approve && cfg_.gate && tx_.peer_ip() != "127.0.0.1") {
+  // Approval gates real remote (Wi-Fi) peers only. An empty peer ip means USB/AOA
+  // (adopt_channel over the cable) — physically trusted, like localhost — so it must
+  // never engage the approval gate (which would block until a dialog it should not show).
+  if (cfg_.approve && cfg_.gate && !tx_.peer_ip().empty() && tx_.peer_ip() != "127.0.0.1") {
     std::fprintf(stderr, "approve-request id=%s ip=%s name=%s\n",
                  cid.c_str(), tx_.peer_ip().c_str(), cname.c_str());
     bool allow = false;
@@ -45,6 +48,12 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // portrait<->landscape rotation the session restarts and the reconnect's HELLO gives the
   // swapped dims. start() writes the actual chosen dimensions into w/h.
   int w = static_cast<int>(cw), h = static_cast<int>(ch);
+  // The app always sends landscape HELLO dims (1920x1080). If the tablet last reported a
+  // portrait orientation, build the source portrait-SHAPED (swap) so cur_portrait below
+  // matches the source and the orientation handler does not restart-loop forever — otherwise
+  // every reconnect rebuilds landscape, the tablet re-reports portrait, and it never settles.
+  int ocode = cfg_.live_orientation ? *cfg_.live_orientation : cfg_.orientation;
+  if (orientation_is_portrait(ocode) && w > h) std::swap(w, h);
   src_ = make_source_(w, h);
   if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
   std::fprintf(stderr, "source %dx%d\n", w, h);
@@ -89,33 +98,34 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // so a geometry-query or uinput issue can never affect the display-only path.
   InputInjector injector;
   tx_.set_touch_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
-  if (cfg_.touch) {
+  if (cfg_.touch && !have_output) {
+    // We can't pin the touchscreen to the droppix output on this compositor (e.g. GNOME,
+    // before its DesktopBackend exists) — injecting anyway moves the WRONG monitor's cursor.
+    // Skip touch entirely until the backend can bind it: better no touch than wrong-screen touch.
+    std::fprintf(stderr, "input: touch disabled — could not identify/bind the droppix output on "
+                 "this desktop; skipping touch injection (it would land on the wrong screen)\n");
+  } else if (cfg_.touch) {   // have_output is true here: safe to inject and bind
     if (injector.open(cfg_.touch_name)) {
       tx_.set_touch_handler([&injector](const std::vector<TouchContact>& contacts) {
         injector.inject(contacts);
       });
-      if (have_output) {
-        std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
-                     droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
-        auto backend = desktop_;                       // shared_ptr copy keeps it alive
-        std::string out_name = droppix.name, tname = cfg_.touch_name;
-        std::thread([backend, out_name, tname]{ backend->map_touch(out_name, tname); }).detach();
-        // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
-        // the bounding box of all kscreen outputs.
-        int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;
-        if (deskW <= 0 || deskH <= 0) {
-          deskW = 0; deskH = 0;
-          for (const auto& o : after_outputs) {
-            if (o.geom.x + o.geom.w > deskW) deskW = o.geom.x + o.geom.w;
-            if (o.geom.y + o.geom.h > deskH) deskH = o.geom.y + o.geom.h;
-          }
+      std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
+                   droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
+      auto backend = desktop_;                       // shared_ptr copy keeps it alive
+      std::string out_name = droppix.name, tname = cfg_.touch_name;
+      std::thread([backend, out_name, tname]{ backend->map_touch(out_name, tname); }).detach();
+      // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
+      // the bounding box of all outputs.
+      int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;
+      if (deskW <= 0 || deskH <= 0) {
+        deskW = 0; deskH = 0;
+        for (const auto& o : after_outputs) {
+          if (o.geom.x + o.geom.w > deskW) deskW = o.geom.x + o.geom.w;
+          if (o.geom.y + o.geom.h > deskH) deskH = o.geom.y + o.geom.h;
         }
-        injector.set_geometry(droppix.geom.x, droppix.geom.y, droppix.geom.w, droppix.geom.h,
-                              deskW, deskH);
-      } else {
-        std::fprintf(stderr, "input: could not identify droppix output; touch may land "
-                     "on the wrong monitor (map 'droppix-touch' in System Settings > Touch Screen)\n");
       }
+      injector.set_geometry(droppix.geom.x, droppix.geom.y, droppix.geom.w, droppix.geom.h,
+                            deskW, deskH);
     } else {
       std::fprintf(stderr, "input: uinput unavailable (need root); input disabled\n");
     }
