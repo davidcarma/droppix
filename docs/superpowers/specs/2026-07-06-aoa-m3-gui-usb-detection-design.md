@@ -198,7 +198,7 @@ class AoaScanner : public QObject {
 |---|---|
 | Device listed but app not installed / not droppix | Streamer switches to accessory, nothing answers; monitor row stays "waiting". After ~10 s the status hints "No droppix app responded — is it installed on the tablet?". User Stops it (existing per-session Stop). No auto-kill. |
 | Device unplugged mid-session | `AoaChannel::close()` → session ends → row removed; serial remains in known-store. |
-| Device stuck in accessory mode (crashed prior run) | Scanner still lists it (accessory-mode rule); `aoa_connect` resets such a device before re-handshaking, so Connect recovers. |
+| Device stuck in accessory mode (crashed prior run) | The pure parser still *detects* accessory mode, but the GUI list **hides** accessory-mode rows (a live AOA session re-enumerates the tablet into accessory mode, so a visible "0000 — USB" row would duplicate the running session). Recover a genuinely stuck device by replugging; `aoa_connect` also resets such a device before re-handshaking. |
 | Two identical models plugged | Disambiguated by serial in the label and the session key. |
 | sysfs file missing/unreadable | That field is skipped; a device missing a serial is not listed (can't target `--usb-aoa`). |
 
