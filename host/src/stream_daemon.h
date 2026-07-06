@@ -9,6 +9,7 @@
 #include "transport_server.h"
 #include "input_map.h"   // droppix::Rect
 #include "approval.h"    // droppix::ApprovalGate
+#include "desktop_backend.h"  // droppix::DesktopBackend, make_desktop_backend
 
 namespace droppix {
 struct StreamConfig {
@@ -48,5 +49,6 @@ class StreamDaemon {
   Encoder& enc_;
   TransportServer& tx_;
   StreamConfig cfg_;
+  std::shared_ptr<DesktopBackend> desktop_ = make_desktop_backend();
 };
 }  // namespace droppix
