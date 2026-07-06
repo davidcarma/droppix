@@ -41,6 +41,7 @@ add_library(droppix_core
   src/tether_discovery.cpp
   src/aoa_channel.cpp
   src/aoa_connect.cpp
+  src/aoa_scan.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -80,9 +81,12 @@ if(Qt6_FOUND)
     gui/port_alloc.cpp
     gui/session_manager.cpp
     gui/auto_connect.cpp
+    gui/aoa_known_store.cpp
+    gui/aoa_scanner.cpp
     gui/resources.qrc
     src/mdns_browse.cpp
     src/tether_discovery.cpp
+    src/aoa_scan.cpp
   )
   target_link_libraries(droppix_gui PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 else()
@@ -129,6 +133,7 @@ add_executable(droppix_tests
   tests/test_mdns_browse.cpp
   tests/test_pairing_code.cpp
   tests/test_audio_sink.cpp
+  tests/test_aoa_scan.cpp
   gui/tests/test_port_alloc.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
@@ -152,6 +157,8 @@ if(Qt6_FOUND)
     gui/port_alloc.cpp
     gui/tests/test_auto_connect.cpp
     gui/auto_connect.cpp
+    gui/tests/test_aoa_known_store.cpp
+    gui/aoa_known_store.cpp
   )
   target_include_directories(droppix_gui_tests PRIVATE gui src)
   target_link_libraries(droppix_gui_tests PRIVATE Qt6::Widgets GTest::gtest_main)
