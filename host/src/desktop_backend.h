@@ -12,6 +12,11 @@ namespace droppix {
 // unchanged: keeps WAYLAND_DISPLAY=wayland-0 — real-socket discovery is M2's job.)
 std::string user_session_prefix();
 
+// Validate a compositor output/connector name (connector-id chars only) before it is
+//  interpolated into a shell command or trusted as identified. Shared by the KWin backend
+//  and StreamDaemon's output-identification gate.
+bool safe_output_name(const std::string& s);
+
 // Per-desktop operations droppix needs beyond creating the evdi output. Compositing
 // the virtual display, encode, and stream are compositor-agnostic and not here.
 struct DesktopBackend {

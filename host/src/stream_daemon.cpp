@@ -15,87 +15,12 @@
 
 namespace droppix {
 
-// The streamer runs as root (pkexec/sudo) and can't see the user's Wayland/KWin
-// session, so any session command (kscreen-doctor, KWin DBus) must run AS THE
-// invoking user with a reconstructed session env. Returns a command prefix like
-// "runuser -u name -- env XDG_RUNTIME_DIR=... " (empty if already a user session).
-// Uses runuser (not sudo): sudo often refuses without a tty, which pkexec lacks.
-static std::string user_cmd_prefix() {
-  const char* uid = std::getenv("PKEXEC_UID");
-  if (!uid || !*uid) uid = std::getenv("SUDO_UID");
-  if (!uid || !*uid) return "env ";  // already in a user session
-  const std::string u(uid);
-  const std::string env =
-      "env XDG_RUNTIME_DIR=/run/user/" + u + " "
-      "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/" + u + "/bus "
-      "WAYLAND_DISPLAY=wayland-0 ";
-  struct passwd* pw = getpwuid(static_cast<uid_t>(std::atoi(u.c_str())));
-  if (pw && pw->pw_name) return std::string("runuser -u ") + pw->pw_name + " -- " + env;
-  return "sudo -u '#" + u + "' " + env;
-}
-
-static std::string run_kscreen() {
-  std::string out;
-  std::string cmd = "timeout 3 " + user_cmd_prefix() + "kscreen-doctor -o 2>/dev/null";
-  FILE* p = popen(cmd.c_str(), "r");
-  if (!p) return out;
-  char buf[4096]; size_t n;
-  while ((n = fread(buf, 1, sizeof(buf), p)) > 0) out.append(buf, n);
-  pclose(p);
-  std::fprintf(stderr, "input: kscreen query returned %zu bytes\n", out.size());
-  return out;
-}
-
-// Output names are short connector ids (DP-3, HDMI-A-3, ...); reject anything else
-// so the name can be safely interpolated into the bind shell command.
-static bool safe_output_name(const std::string& s) {
-  if (s.empty() || s.size() > 64) return false;
-  for (char c : s) if (!std::isalnum((unsigned char)c) && c != '-' && c != '_') return false;
-  return true;
-}
-
-// Map the droppix-touch device onto the droppix output via KWin's per-device DBus
-// properties, so the touchscreen's full range maps to that monitor instead of KWin's
-// default output. Sets BOTH mapToWorkspace=false (else the device spans the whole
-// desktop and outputName is ignored) and outputName=<droppix>. Logs KWin's before/
-// after state to stderr (host log) so a single run shows exactly what KWin did.
-// Retries while KWin registers the new uinput device; runs detached / timeout-guarded.
-static void bind_touch_to_output(std::string output_name, std::string touch_name) {
-  if (!safe_output_name(output_name)) return;
-  if (!safe_output_name(touch_name)) return;   // it's shell-injected below; keep it [A-Za-z0-9-] like an output name
-  // Properties must be read/written via org.freedesktop.DBus.Properties (the qdbus
-  // shorthand "Interface.prop value" silently errors with UnknownInterface on these
-  // objects). G/S = Get/Set helpers. inner uses ONLY double quotes so it can be wrapped
-  // in single quotes for the outer shell — keeping $(...)/$VAR unexpanded until the
-  // inner sh (running as the user) evaluates them.
-  const std::string inner =
-      "QD=; for q in qdbus6 qdbus-qt6 qdbus; do command -v \"$q\" >/dev/null 2>&1 && QD=$q && break; done; "
-      "[ -z \"$QD\" ] && { echo \"[touch-bind] no qdbus available\" >&2; exit 0; }; "
-      "I=org.kde.KWin.InputDevice; PG=org.freedesktop.DBus.Properties.Get; PS=org.freedesktop.DBus.Properties.Set; "
-      "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do "
-      "for d in $(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice "
-      "org.kde.KWin.InputDeviceManager.ListTouch 2>/dev/null); do "
-      "P=/org/kde/KWin/InputDevice/$d; "
-      "n=$(\"$QD\" org.kde.KWin \"$P\" $PG $I name 2>/dev/null); "
-      "if [ \"$n\" = " + touch_name + " ]; then "
-      "echo \"[touch-bind] found droppix-touch ($d) before mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)] target=" +
-      output_name + "\" >&2; "
-      "\"$QD\" org.kde.KWin \"$P\" $PS $I mapToWorkspace false 2>&1 | sed \"s/^/[touch-bind] set mapToWorkspace: /\" >&2; "
-      "\"$QD\" org.kde.KWin \"$P\" $PS $I outputName " + output_name +
-      " 2>&1 | sed \"s/^/[touch-bind] set outputName: /\" >&2; "
-      "echo \"[touch-bind] after mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)]\" >&2; "
-      "exit 0; fi; done; sleep 0.2; done; "
-      "echo \"[touch-bind] droppix-touch not found via ListTouch after retries\" >&2";
-  std::string cmd = "timeout 10 " + user_cmd_prefix() + "sh -c '" + inner + "'";
-  std::system(cmd.c_str());
-}
-
 bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_frames) {
   // We need the droppix output's NAME for orientation (incl. live auto-rotate) and
   // touch: snapshot the outputs BEFORE the source creates its monitor, so we can
   // identify it as the one that newly appears afterwards. Timeout-guarded and graceful
   // (finds nothing for the test-pattern source, which has no droppix output).
-  std::vector<OutputInfo> before_outputs = parse_kscreen_outputs(run_kscreen());
+  std::vector<OutputInfo> before_outputs = desktop_->outputs();
 
   // AOA: the caller already adopted a ByteChannel (USB accessory), so skip the TCP accept.
   if (!cfg_.preconnected) {
@@ -137,7 +62,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
 
   // Identify the droppix output (for orientation and/or touch): prefer the
   // newly-appeared one (unambiguous), else fall back to a size match.
-  auto after_outputs = parse_kscreen_outputs(run_kscreen());
+  auto after_outputs = desktop_->outputs();
   OutputInfo droppix;
   bool found_output = select_new_output(before_outputs, after_outputs, droppix) ||
                       select_droppix(after_outputs, w, h, droppix);
@@ -175,7 +100,9 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       if (have_output) {
         std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                      droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
-        std::thread(bind_touch_to_output, droppix.name, cfg_.touch_name).detach();
+        auto backend = desktop_;                       // shared_ptr copy keeps it alive
+        std::string out_name = droppix.name, tname = cfg_.touch_name;
+        std::thread([backend, out_name, tname]{ backend->map_touch(out_name, tname); }).detach();
         // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
         // the bounding box of all kscreen outputs.
         int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;
@@ -201,7 +128,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // the user session and stream it. Best-effort; never blocks the video path.
   AudioStreamer audio;
   if (cfg_.audio) {
-    if (audio.start(user_cmd_prefix()))
+    if (audio.start(user_session_prefix()))
       std::fprintf(stderr, "audio: capturing droppix-audio.monitor\n");
     else
       std::fprintf(stderr, "audio: capture unavailable (pw-record/droppix-audio missing)\n");

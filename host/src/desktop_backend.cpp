@@ -20,7 +20,6 @@ std::string user_session_prefix() {
   return "sudo -u '#" + u + "' " + env;
 }
 
-namespace {
 // Output names are short connector ids (DP-3, HDMI-A-3, ...); reject anything else
 // so the name can be safely interpolated into the bind shell command.
 bool safe_output_name(const std::string& s) {
@@ -28,7 +27,6 @@ bool safe_output_name(const std::string& s) {
   for (char c : s) if (!std::isalnum((unsigned char)c) && c != '-' && c != '_') return false;
   return true;
 }
-}  // namespace
 
 std::vector<OutputInfo> KWinBackend::outputs() {
   std::string out;
