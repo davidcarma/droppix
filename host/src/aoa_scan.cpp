@@ -3,7 +3,6 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
-#include <set>
 #include <unordered_set>
 
 namespace fs = std::filesystem;
@@ -32,7 +31,7 @@ uint16_t hex16(const std::string& s) {
   catch (...) { return 0; }
 }
 
-int dec_or_hex_class(const std::string& s) {   // sysfs classes are 2-digit hex
+int hex_class(const std::string& s) {   // sysfs classes are 2-digit hex
   if (s.empty()) return -1;
   try { return static_cast<int>(std::stoul(s, nullptr, 16)); }
   catch (...) { return -1; }
@@ -77,7 +76,7 @@ std::vector<AoaDevice> parse_usb_sysfs(const std::string& sysfs_root) {
     const auto colon = name.find(':');
     if (colon != std::string::npos) {
       const std::string dev = name.substr(0, colon);
-      const int cls = dec_or_hex_class(read_attr(entry.path() / "bInterfaceClass"));
+      const int cls = hex_class(read_attr(entry.path() / "bInterfaceClass"));
       if (cls >= 0) iface_classes.emplace(dev, cls);
     } else if (fs::exists(entry.path() / "idVendor", ec)) {
       device_names.push_back(name);
@@ -87,7 +86,7 @@ std::vector<AoaDevice> parse_usb_sysfs(const std::string& sysfs_root) {
   // Pass 2: evaluate each device.
   for (const auto& name : device_names) {
     const fs::path dir = fs::path(sysfs_root) / name;
-    const int devClass = dec_or_hex_class(read_attr(dir / "bDeviceClass"));
+    const int devClass = hex_class(read_attr(dir / "bDeviceClass"));
     if (devClass == kClassHub) continue;
 
     AoaDevice d;
@@ -102,13 +101,15 @@ std::vector<AoaDevice> parse_usb_sysfs(const std::string& sysfs_root) {
     d.product = read_attr(dir / "product");
 
     if (!d.accessory_mode) {
-      // Drop devices whose only interfaces are HID or mass-storage (keyboards,
-      // drives) even from an Android vendor. Accessory-mode devices are always kept.
+      // Keep a non-accessory device only if it has >=1 interface that is not HID or
+      // mass-storage (keyboards, drives). A device with no discoverable interfaces
+      // fails closed and is excluded (the 2s poll retries once interfaces populate).
+      // Accessory-mode devices are always kept regardless of interfaces.
       auto range = iface_classes.equal_range(name);
       bool has_iface = range.first != range.second, only_hid_storage = has_iface;
       for (auto it = range.first; it != range.second; ++it)
         if (it->second != kClassHid && it->second != kClassStorage) only_hid_storage = false;
-      if (only_hid_storage) continue;
+      if (!has_iface || only_hid_storage) continue;
     }
     out.push_back(std::move(d));
   }

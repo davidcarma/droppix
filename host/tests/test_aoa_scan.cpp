@@ -92,6 +92,23 @@ TEST(AoaScan, ExcludesAndroidDeviceWithNoSerial) {
   EXPECT_TRUE(parse_usb_sysfs(root.string()).empty());
 }
 
+TEST(AoaScan, ExcludesAndroidDeviceWithNoInterfaces) {
+  auto root = make_root("nointerfaces");
+  // Android vendor but zero discoverable interfaces: satisfies neither
+  // accessory_mode nor "has a non-HID/storage interface" -> excluded (fail closed).
+  make_dev(root, "1-5", "18d1", "4ee7", "00", "R32D204ZH6J", "Nexus 10", {});
+  EXPECT_TRUE(parse_usb_sysfs(root.string()).empty());
+}
+
+TEST(AoaScan, DetectsAccessoryModePid2d00) {
+  auto root = make_root("accessory2d00");
+  make_dev(root, "1-5", "18d1", "2d00", "00", "0000", "", {"ff"});
+  auto devs = parse_usb_sysfs(root.string());
+  ASSERT_EQ(devs.size(), 1u);
+  EXPECT_TRUE(devs[0].accessory_mode);
+  EXPECT_EQ(devs[0].product_id, 0x2d00);
+}
+
 TEST(AoaScan, ReturnsMultipleDevicesSortedBySerial) {
   auto root = make_root("multi");
   make_dev(root, "1-5", "18d1", "4ee7", "00", "ZZZ", "Nexus 10", {"ff"});
