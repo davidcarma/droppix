@@ -42,6 +42,7 @@ add_library(droppix_core
   src/aoa_channel.cpp
   src/aoa_connect.cpp
   src/aoa_scan.cpp
+  src/desktop_backend.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -134,6 +135,7 @@ add_executable(droppix_tests
   tests/test_pairing_code.cpp
   tests/test_audio_sink.cpp
   tests/test_aoa_scan.cpp
+  tests/test_desktop_backend.cpp
   gui/tests/test_port_alloc.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp
