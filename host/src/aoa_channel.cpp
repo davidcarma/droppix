@@ -20,8 +20,15 @@ bool AoaChannel::fill(int timeout_ms) {
   if (rxpos_ >= rxbuf_.size()) { rxbuf_.clear(); rxpos_ = 0; }  // recycle a drained buffer
   unsigned char tmp[kChunk];
   int got = 0;
-  int r = libusb_bulk_transfer(handle_, ep_in_, tmp, kChunk, &got,
-                               timeout_ms < 0 ? 0 : timeout_ms);
+  // Timeout convention matches poll()/SocketChannel: <0 blocks indefinitely, 0 returns
+  // immediately (non-blocking poll), >0 waits that many ms. libusb's sync bulk API treats
+  // timeout 0 as "block forever", so map our 0 to the smallest real poll (1 ms). This is
+  // critical: poll_control() checks readability with wait_readable(0) after every frame; if
+  // that parked here it would stall the whole stream waiting for the app to speak.
+  unsigned int t = (timeout_ms < 0) ? 0u
+                 : (timeout_ms == 0) ? 1u
+                                     : static_cast<unsigned int>(timeout_ms);
+  int r = libusb_bulk_transfer(handle_, ep_in_, tmp, kChunk, &got, t);
   if (r == 0 || (r == LIBUSB_ERROR_TIMEOUT && got > 0)) {
     if (got > 0) { rxbuf_.insert(rxbuf_.end(), tmp, tmp + got); return true; }
     return false;  // completed with zero bytes -> treat as no data
