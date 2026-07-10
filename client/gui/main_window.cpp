@@ -171,9 +171,13 @@ void MainWindow::netThreadMain(QString hostQ, quint16 port) {
     }
   }
   running_.store(false);
+  // Set button state from running_ at *delivery* time, not hardcoded true/false: on a
+  // settings-triggered reconnect this stale lambda from the old net thread is delivered
+  // after startSession() has already set running_=true for the new session, so it must
+  // leave Disconnect enabled rather than re-disabling it permanently.
   QMetaObject::invokeMethod(this, [this]{
-    connectAction_->setEnabled(true);
-    disconnectAction_->setEnabled(false);
+    connectAction_->setEnabled(!running_.load());
+    disconnectAction_->setEnabled(running_.load());
   }, Qt::QueuedConnection);
 }
 
