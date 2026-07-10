@@ -8,6 +8,7 @@
 #include "transport_client.h"
 #include "video_decoder.h"
 #include "audio_player.h"
+#include "client_settings.h"
 
 class QLabel;
 class QAction;
@@ -36,6 +37,7 @@ class MainWindow : public QMainWindow {
 
   HostStore hostStore_;
   TlsTrust tlsTrust_;
+  ClientSettings settings_ = ClientSettingsStore::load();
   std::unique_ptr<TransportClient> client_;
   std::unique_ptr<VideoDecoder> decoder_;   // touched only by netThread_
   AudioPlayer* audioPlayer_ = nullptr;      // QObject, GUI-thread owned (parented to this)

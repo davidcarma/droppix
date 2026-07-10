@@ -53,7 +53,8 @@ void TransportClient::sendOrientation(uint8_t code) {
 }
 
 void TransportClient::runOverChannel(ByteChannel& channel, uint32_t width, uint32_t height,
-                                    uint32_t density, StreamListener& listener,
+                                    uint32_t density, uint32_t fps, uint8_t audio_wanted,
+                                    uint8_t orientation_code, StreamListener& listener,
                                     const std::function<bool()>& isRunning,
                                     const std::string& name, const std::string& id,
                                     int pingIntervalMs) {
@@ -61,7 +62,8 @@ void TransportClient::runOverChannel(ByteChannel& channel, uint32_t width, uint3
     std::lock_guard<std::mutex> lk(sendLock_);
     channel_ = &channel;
     auto hello = encode_message(MsgType::Hello,
-        encode_hello(kProtocolVersion, width, height, density, name, id));
+        encode_hello(kProtocolVersion, width, height, density, name, id,
+                     fps, audio_wanted, orientation_code));
     if (!channel.send_all(hello.data(), hello.size())) { channel_ = nullptr; return; }
   }
 

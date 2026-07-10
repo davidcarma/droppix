@@ -113,6 +113,13 @@ void MainWindow::netThreadMain(QString hostQ, quint16 port) {
   const std::string id = DeviceIdentity::stableId();
   const uint32_t density = static_cast<uint32_t>(
       QGuiApplication::primaryScreen() ? QGuiApplication::primaryScreen()->logicalDotsPerInch() : 96);
+  const QSize scr = QGuiApplication::primaryScreen()
+      ? QGuiApplication::primaryScreen()->geometry().size() : QSize(1920, 1080);
+  const uint32_t w = settings_.width > 0 ? static_cast<uint32_t>(settings_.width) : static_cast<uint32_t>(scr.width());
+  const uint32_t h = settings_.height > 0 ? static_cast<uint32_t>(settings_.height) : static_cast<uint32_t>(scr.height());
+  const uint32_t fps = static_cast<uint32_t>(settings_.fps);
+  const uint8_t audio = settings_.audio ? 1 : 0;
+  const uint8_t orient = static_cast<uint8_t>(rotation_to_code(settings_.rotation));
 
   StreamListenerImpl listener(this, video_, decoder_.get(), audioPlayer_);
 
@@ -133,7 +140,7 @@ void MainWindow::netThreadMain(QString hostQ, quint16 port) {
     }
     QMetaObject::invokeMethod(this, [this]{ statusLabel_->setText("Streaming"); },
                               Qt::QueuedConnection);
-    client_->runOverChannel(*channel, 1920, 1080, density, listener,
+    client_->runOverChannel(*channel, w, h, density, fps, audio, orient, listener,
                             [this]{ return running_.load(); }, name, id);
     channel->close();
     if (running_.load()) {
