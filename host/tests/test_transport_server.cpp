@@ -45,8 +45,8 @@ TEST(TransportServer, FramingOverFakeChannel) {
       MsgType::Hello, encode_hello(kProtocolVersion, 800, 600, 200, "Fake", "fid"));
   s.adopt_channel(std::move(fake), "test");
 
-  uint32_t ver, w, h, d; std::string name, id;
-  ASSERT_TRUE(s.read_hello(ver, w, h, d, name, id, 0));
+  uint32_t ver, w, h, d, fps; uint8_t audio, orient; std::string name, id;
+  ASSERT_TRUE(s.read_hello(ver, w, h, d, fps, audio, orient, name, id, 0));
   EXPECT_EQ(ver, kProtocolVersion);
   EXPECT_EQ(w, 800u); EXPECT_EQ(h, 600u);
   EXPECT_EQ(name, "Fake"); EXPECT_EQ(id, "fid");
@@ -57,6 +57,18 @@ TEST(TransportServer, FramingOverFakeChannel) {
   p.feed(fp->sent.data(), fp->sent.size());
   ASSERT_TRUE(p.next(m));
   EXPECT_EQ(m.type, MsgType::Video);
+}
+
+TEST(TransportServer, ReadHelloV4Fields) {
+  TransportServer s;
+  auto fake = std::make_unique<FakeChannel>();
+  fake->to_recv = encode_message(
+      MsgType::Hello, encode_hello(4, 1600, 900, 120, "n", "i", 60, 1, 1));
+  s.adopt_channel(std::move(fake), "test");
+
+  uint32_t ver, w, h, d, fps; uint8_t audio, orient; std::string name, id;
+  ASSERT_TRUE(s.read_hello(ver, w, h, d, fps, audio, orient, name, id, 1000));
+  EXPECT_EQ(fps, 60u); EXPECT_EQ(audio, 1); EXPECT_EQ(orient, 1); EXPECT_EQ(w, 1600u);
 }
 
 // Minimal in-test client: connect, send HELLO, read one CONFIG + one VIDEO.
@@ -95,8 +107,8 @@ TEST(TransportServer, HandshakeThenVideo) {
   std::thread t(client_thread, port, &client_ok);
 
   ASSERT_TRUE(s.accept_client(2000));
-  uint32_t ver, w, h, d; std::string name, id;
-  ASSERT_TRUE(s.read_hello(ver, w, h, d, name, id, 2000));
+  uint32_t ver, w, h, d, fps; uint8_t audio, orient; std::string name, id;
+  ASSERT_TRUE(s.read_hello(ver, w, h, d, fps, audio, orient, name, id, 2000));
   EXPECT_EQ(ver, kProtocolVersion);
   EXPECT_EQ(w, 1920u); EXPECT_EQ(h, 1080u);
   EXPECT_EQ(name, "TestTablet"); EXPECT_EQ(id, "test-id-1");

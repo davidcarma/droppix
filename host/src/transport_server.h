@@ -19,6 +19,7 @@ class TransportServer {
   // a TCP client. accept_client() uses this internally with a SocketChannel.
   void adopt_channel(std::unique_ptr<ByteChannel> ch, std::string peer = "");
   bool read_hello(uint32_t& version, uint32_t& w, uint32_t& h, uint32_t& density,
+                  uint32_t& fps, uint8_t& audio_wanted, uint8_t& orientation,
                   std::string& name, std::string& id, int timeout_ms);
   bool send_config(uint32_t w, uint32_t h, uint32_t fps,
                    const std::vector<unsigned char>& extradata);

@@ -90,6 +90,7 @@ bool TransportServer::accept_client(int timeout_ms) {
 }
 
 bool TransportServer::read_hello(uint32_t& version, uint32_t& w, uint32_t& h, uint32_t& density,
+                                 uint32_t& fps, uint8_t& audio_wanted, uint8_t& orientation,
                                  std::string& name, std::string& id, int timeout_ms) {
   if (!channel_) return false;
   unsigned char buf[1024];
@@ -97,7 +98,7 @@ bool TransportServer::read_hello(uint32_t& version, uint32_t& w, uint32_t& h, ui
   for (;;) {
     if (parser_.next(m)) {
       if (m.type != MsgType::Hello) continue;
-      return decode_hello(m.body, version, w, h, density, name, id);
+      return decode_hello(m.body, version, w, h, density, fps, audio_wanted, orientation, name, id);
     }
     if (!channel_->wait_readable(timeout_ms)) return false;
     ssize_t n = channel_->recv(buf, sizeof(buf));

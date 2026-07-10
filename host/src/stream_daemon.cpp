@@ -5,11 +5,16 @@
 #include "monitor_geometry.h"
 #include "orientation.h"
 #include "audio_streamer.h"
+#include "session_params.h"
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <fcntl.h>
 #include <future>
 #include <string>
+#include <sys/file.h>
 #include <thread>
+#include <unistd.h>
 
 namespace droppix {
 
@@ -27,9 +32,13 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
   // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
   std::fprintf(stderr, "client-connecting ip=%s\n", tx_.peer_ip().c_str());
-  uint32_t cver, cw, ch, density; std::string cname, cid;
-  if (!tx_.read_hello(cver, cw, ch, density, cname, cid, 10000)) { std::fprintf(stderr, "no HELLO\n"); return false; }
-  std::fprintf(stderr, "client HELLO v%u %ux%u name=%s id=%s\n", cver, cw, ch, cname.c_str(), cid.c_str());
+  uint32_t cver, cw, ch, density, hfps; uint8_t haudio, hori; std::string cname, cid;
+  if (!tx_.read_hello(cver, cw, ch, density, hfps, haudio, hori, cname, cid, 10000)) {
+    std::fprintf(stderr, "no HELLO\n"); return false; }
+  std::fprintf(stderr, "client HELLO v%u %ux%u fps=%u audio=%u orient=%u name=%s id=%s\n",
+               cver, cw, ch, hfps, haudio, hori, cname.c_str(), cid.c_str());
+  const SessionParams sp = select_session_params(cver, hfps, haudio, hori,
+                                                 cfg_.fps, cfg_.audio, cfg_.orientation);
 
   // Approval gates real remote (Wi-Fi) peers only. An empty peer ip means USB/AOA
   // (adopt_channel over the cable) — physically trusted, like localhost — so it must
@@ -53,14 +62,14 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // portrait orientation, build the source portrait-SHAPED (swap) so cur_portrait below
   // matches the source and the orientation handler does not restart-loop forever — otherwise
   // every reconnect rebuilds landscape, the tablet re-reports portrait, and it never settles.
-  int ocode = cfg_.live_orientation ? *cfg_.live_orientation : cfg_.orientation;
+  int ocode = cfg_.live_orientation ? *cfg_.live_orientation : sp.orientation;
   if (orientation_is_portrait(ocode) && w > h) std::swap(w, h);
   src_ = make_source_(w, h);
   if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
   std::fprintf(stderr, "source %dx%d\n", w, h);
 
-  if (!enc_.open(w, h, cfg_.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
-  if (!tx_.send_config(w, h, cfg_.fps, enc_.extradata())) return false;
+  if (!enc_.open(w, h, sp.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
+  if (!tx_.send_config(w, h, sp.fps, enc_.extradata())) return false;
   // Seed the app's overlay from the live host-side toggle if present (so a reconnect
   // keeps whatever the GUI last set), else the start-up flag. Tracked below so the
   // stream loop can push later host-side changes mid-session.
@@ -165,10 +174,24 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
     }
   }
 
-  // Audio capture (opt-in via --audio): capture the droppix-audio sink monitor in
-  // the user session and stream it. Best-effort; never blocks the video path.
+  // Audio capture (client-requested via HELLO, cfg_.audio as fallback for pre-v4 clients):
+  // capture the droppix-audio sink monitor in the user session and stream it. Best-effort;
+  // never blocks the video path. Only one session may capture the shared droppix-audio sink
+  // at a time: claim an advisory lock; if another session holds it, run video-only.
   AudioStreamer audio;
-  if (cfg_.audio) {
+  int audio_lock_fd = -1;
+  bool do_audio = sp.audio;
+  if (do_audio) {
+    const char* rt = std::getenv("XDG_RUNTIME_DIR");
+    std::string lockpath = std::string(rt ? rt : "/tmp") + "/droppix-audio.lock";
+    audio_lock_fd = ::open(lockpath.c_str(), O_CREAT | O_RDWR, 0600);
+    if (audio_lock_fd < 0 || ::flock(audio_lock_fd, LOCK_EX | LOCK_NB) != 0) {
+      if (audio_lock_fd >= 0) { ::close(audio_lock_fd); audio_lock_fd = -1; }
+      do_audio = false;                    // another session owns audio
+      std::fprintf(stderr, "audio: already claimed by another session; video-only\n");
+    }
+  }
+  if (do_audio) {
     if (audio.start(user_session_prefix()))
       std::fprintf(stderr, "audio: capturing droppix-audio.monitor\n");
     else
@@ -182,13 +205,13 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   auto last_report = std::chrono::steady_clock::now();
   // With touch on, poll the loop tightly so incoming touch is handled promptly
   // instead of being gated by the up-to-1s damage-driven frame wait.
-  const int frame_timeout = (cfg_.touch || cfg_.audio) ? 8 : 1000;
+  const int frame_timeout = (cfg_.touch || do_audio) ? 8 : 1000;
   while (!stop && !restart_for_orientation && tx_.connected()) {
     if (cfg_.live_overlay) {  // host-side overlay toggle changed -> tell the app (loop thread = single writer)
       int ov = cfg_.live_overlay->load();
       if (ov != last_overlay) { tx_.send_overlay(ov ? 1 : 0); last_overlay = ov; }
     }
-    if (cfg_.audio) {
+    if (do_audio) {
       std::vector<std::vector<unsigned char>> chunks;
       if (audio.drain(chunks))
         for (auto& c : chunks) tx_.send_audio(c);
@@ -233,6 +256,8 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // On an orientation-driven restart, drop the client so it reconnects and the caller
   // rebuilds the source at the new dimensions.
   if (restart_for_orientation) tx_.close_all();
+  // Release the audio claim (if held) so the next session can capture the shared sink.
+  if (audio_lock_fd >= 0) ::close(audio_lock_fd);
   return true;
 }
 
