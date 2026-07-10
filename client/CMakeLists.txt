@@ -41,6 +41,7 @@ add_executable(droppix_client
   gui/main.cpp
   gui/main_window.cpp
   gui/connect_dialog.cpp
+  gui/settings_dialog.cpp
   gui/video_widget.cpp
   gui/host_store.cpp
 )

@@ -28,6 +28,7 @@ class MainWindow : public QMainWindow {
  private slots:
   void onConnectAction();
   void onDisconnectAction();
+  void onSettingsAction();
 
  private:
   void startSession(const QString& host, quint16 port);
@@ -49,6 +50,7 @@ class MainWindow : public QMainWindow {
   std::thread netThread_;
   std::atomic<bool> running_{false};
   QString currentHost_;
+  quint16 lastPort_ = 0;
 };
 
 }  // namespace droppix

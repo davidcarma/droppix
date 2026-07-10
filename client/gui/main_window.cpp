@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "video_widget.h"
 #include "connect_dialog.h"
+#include "settings_dialog.h"
 #include "client_socket_channel.h"
 #include "device_identity.h"
 #include "style.h"
@@ -68,6 +69,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connectAction_ = toolbar->addAction("Connect", this, &MainWindow::onConnectAction);
   disconnectAction_ = toolbar->addAction("Disconnect", this, &MainWindow::onDisconnectAction);
   disconnectAction_->setEnabled(false);
+  toolbar->addAction("Settings", this, &MainWindow::onSettingsAction);
 
   statusLabel_ = new QLabel("Not connected", this);
   statusLabel_->setObjectName("statusText");
@@ -89,8 +91,27 @@ void MainWindow::onDisconnectAction() {
   stopSession();
 }
 
+void MainWindow::onSettingsAction() {
+  QSize scr = QGuiApplication::primaryScreen()
+                ? QGuiApplication::primaryScreen()->geometry().size() : QSize(1920, 1080);
+  ClientSettingsDialog dlg(settings_, QString("%1x%2").arg(scr.width()).arg(scr.height()), this);
+  if (dlg.exec() != QDialog::Accepted) return;
+  ClientSettings next = dlg.result();
+  const bool changed = next.width != settings_.width || next.height != settings_.height ||
+                       next.fps != settings_.fps || next.audio != settings_.audio ||
+                       next.rotation != settings_.rotation;
+  settings_ = next;
+  ClientSettingsStore::save(settings_);
+  if (changed && running_.load()) {  // apply immediately: reconnect with the new HELLO
+    const QString host = currentHost_;
+    stopSession();
+    startSession(host, lastPort_);
+  }
+}
+
 void MainWindow::startSession(const QString& host, quint16 port) {
   currentHost_ = host;
+  lastPort_ = port;
   running_.store(true);
   connectAction_->setEnabled(false);
   disconnectAction_->setEnabled(true);
