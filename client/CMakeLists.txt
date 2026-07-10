@@ -26,6 +26,7 @@ add_library(droppix_client_core
   src/video_decoder.cpp
   src/audio_player.cpp
   src/device_identity.cpp
+  src/client_settings.cpp
 )
 target_include_directories(droppix_client_core PUBLIC
   src
@@ -63,7 +64,9 @@ enable_testing()
 add_executable(droppix_client_tests
   tests/test_touch_normalizer.cpp
   tests/test_tls_trust.cpp
+  tests/test_client_settings.cpp
   src/tls_trust.cpp
+  src/client_settings.cpp
   ../host/src/protocol.cpp
 )
 target_include_directories(droppix_client_tests PRIVATE gui src ../host/src)

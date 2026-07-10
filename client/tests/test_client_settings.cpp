@@ -1,0 +1,20 @@
+#include <gtest/gtest.h>
+#include <QCoreApplication>
+#include <QSettings>
+#include "client_settings.h"
+using namespace droppix;
+
+TEST(ClientSettings, RotationToCode) {
+  EXPECT_EQ(rotation_to_code(0), 0);   EXPECT_EQ(rotation_to_code(90), 1);
+  EXPECT_EQ(rotation_to_code(180), 2); EXPECT_EQ(rotation_to_code(270), 3);
+  EXPECT_EQ(rotation_to_code(45), 0);  // invalid -> 0
+}
+TEST(ClientSettings, SaveLoadRoundTrip) {
+  static int argc = 0; static QCoreApplication app(argc, nullptr);
+  QSettings::setDefaultFormat(QSettings::IniFormat);   // avoid touching the real config
+  ClientSettings s; s.width=1280; s.height=720; s.fps=30; s.audio=true; s.rotation=90;
+  ClientSettingsStore::save(s);
+  ClientSettings r = ClientSettingsStore::load();
+  EXPECT_EQ(r.width,1280); EXPECT_EQ(r.height,720); EXPECT_EQ(r.fps,30);
+  EXPECT_TRUE(r.audio); EXPECT_EQ(r.rotation,90);
+}
