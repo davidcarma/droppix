@@ -62,6 +62,12 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // portrait orientation, build the source portrait-SHAPED (swap) so cur_portrait below
   // matches the source and the orientation handler does not restart-loop forever — otherwise
   // every reconnect rebuilds landscape, the tablet re-reports portrait, and it never settles.
+  // A v4 client's HELLO orientation is authoritative, so seed the live-orientation slot from
+  // it at connect. Without this the ternary below always reads *live_orientation (the slot is
+  // never null in the real streamer) and sp.orientation would be dead — a v4 client's chosen
+  // 90/180/270 would be silently dropped and we'd build a landscape monitor. Guarded to v4 so a
+  // future Android client's mid-session live-ORIENTATION value isn't clobbered on reconnect.
+  if (cver >= 4 && cfg_.live_orientation) *cfg_.live_orientation = sp.orientation;
   int ocode = cfg_.live_orientation ? *cfg_.live_orientation : sp.orientation;
   if (orientation_is_portrait(ocode) && w > h) std::swap(w, h);
   src_ = make_source_(w, h);
@@ -192,10 +198,15 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
     }
   }
   if (do_audio) {
-    if (audio.start(user_session_prefix()))
+    if (audio.start(user_session_prefix())) {
       std::fprintf(stderr, "audio: capturing droppix-audio.monitor\n");
-    else
+    } else {
+      // Capture never started (pw-record/droppix-audio missing): don't keep starving other
+      // sessions of the lock, and drop back to the relaxed frame timeout — release the claim.
       std::fprintf(stderr, "audio: capture unavailable (pw-record/droppix-audio missing)\n");
+      do_audio = false;
+      if (audio_lock_fd >= 0) { ::close(audio_lock_fd); audio_lock_fd = -1; }
+    }
   }
 
   auto t0 = std::chrono::steady_clock::now();
