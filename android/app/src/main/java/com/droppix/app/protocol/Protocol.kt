@@ -15,7 +15,7 @@ data class ParsedMessage(val type: MsgType, val body: ByteArray)
 data class Contact(val id: Int, val x: Int, val y: Int, val pressure: Int)
 
 object Protocol {
-    const val VERSION = 2
+    const val VERSION = 4
 
     private fun putU32(out: ArrayList<Byte>, x: Int) {
         out.add((x ushr 24).toByte()); out.add((x ushr 16).toByte())
@@ -39,9 +39,13 @@ object Protocol {
     }
 
     fun encodeHello(version: Int, width: Int, height: Int, density: Int,
-                    name: String = "", id: String = ""): ByteArray {
+                    name: String = "", id: String = "",
+                    fps: Int = 0, audioWanted: Int = 0, orientationCode: Int = 0): ByteArray {
         val out = ArrayList<Byte>()
         putU32(out, version); putU32(out, width); putU32(out, height); putU32(out, density)
+        if (version >= 4) {
+            putU32(out, fps); out.add(audioWanted.toByte()); out.add(orientationCode.toByte())
+        }
         val n = name.toByteArray(Charsets.UTF_8); val i = id.toByteArray(Charsets.UTF_8)
         out.add((n.size ushr 8).toByte()); out.add(n.size.toByte()); for (x in n) out.add(x)
         out.add((i.size ushr 8).toByte()); out.add(i.size.toByte()); for (x in i) out.add(x)

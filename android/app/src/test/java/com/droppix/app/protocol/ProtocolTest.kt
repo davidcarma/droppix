@@ -99,4 +99,27 @@ class ProtocolTest {
         assertArrayEquals(
             byteArrayOf(0,0,0,5, 9, 0xDE.toByte(),0xAD.toByte(),0xBE.toByte(),0xEF.toByte()), m)
     }
+
+    @Test fun helloV4LayoutMatchesHost() {
+        val b = Protocol.encodeHello(4, 1280, 720, 160, "n", "i",
+                                     fps = 30, audioWanted = 1, orientationCode = 1)
+        fun u32(o: Int) = ((b[o].toInt() and 0xFF) shl 24) or ((b[o+1].toInt() and 0xFF) shl 16) or
+                          ((b[o+2].toInt() and 0xFF) shl 8) or (b[o+3].toInt() and 0xFF)
+        assertEquals(4, u32(0)); assertEquals(1280, u32(4)); assertEquals(720, u32(8))
+        assertEquals(160, u32(12))
+        assertEquals(30, u32(16))                       // fps
+        assertEquals(1, b[20].toInt() and 0xFF)         // audio_wanted
+        assertEquals(1, b[21].toInt() and 0xFF)         // orientation_code
+        assertEquals(0, b[22].toInt() and 0xFF); assertEquals(1, b[23].toInt() and 0xFF) // name len u16 = 1
+        assertEquals('n'.code, b[24].toInt() and 0xFF)  // name
+        assertEquals(0, b[25].toInt() and 0xFF); assertEquals(1, b[26].toInt() and 0xFF) // id len u16 = 1
+        assertEquals('i'.code, b[27].toInt() and 0xFF)  // id
+    }
+
+    @Test fun helloV2OmitsNewFields() {
+        // Legacy shape: strings immediately after density (offset 16), no fps/audio/orient.
+        val b = Protocol.encodeHello(2, 1920, 1080, 96, "a", "b")
+        assertEquals(0, b[16].toInt() and 0xFF); assertEquals(1, b[17].toInt() and 0xFF) // name len at 16
+        assertEquals('a'.code, b[18].toInt() and 0xFF)
+    }
 }
