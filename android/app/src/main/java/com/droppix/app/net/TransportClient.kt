@@ -61,6 +61,7 @@ class TransportClient {
     // Wi-Fi/localhost path: open a TLS socket (pinning the host cert for non-localhost), then
     // run the protocol over its streams.
     fun run(host: String, port: Int, width: Int, height: Int, density: Int,
+            fps: Int, audioWanted: Int, orientationCode: Int,
             listener: StreamListener, isRunning: () -> Boolean,
             stats: StatsSink? = null, pingIntervalMs: Long = 1000,
             name: String = "", id: String = "", tlsTrust: TlsTrust) {
@@ -83,7 +84,8 @@ class TransportClient {
 
             socket.soTimeout = 1000  // periodic wakeups so isRunning() is checked
             runOverChannel(socket.getInputStream(), socket.getOutputStream(),
-                width, height, density, listener, isRunning, stats, pingIntervalMs, name, id)
+                width, height, density, fps, audioWanted, orientationCode,
+                listener, isRunning, stats, pingIntervalMs, name, id)
         } finally {
             try { socket.close() } catch (_: Exception) {}
         }
@@ -93,6 +95,7 @@ class TransportClient {
     // answers PING while isRunning(). Used over a TLS socket (run) or a USB-accessory FD (AOA).
     // The caller owns `input`/`output` and closes them; this only nulls `out` on exit.
     fun runOverChannel(input: InputStream, output: OutputStream, width: Int, height: Int, density: Int,
+                       fps: Int, audioWanted: Int, orientationCode: Int,
                        listener: StreamListener, isRunning: () -> Boolean,
                        stats: StatsSink? = null, pingIntervalMs: Long = 1000,
                        name: String = "", id: String = "") {
@@ -100,7 +103,8 @@ class TransportClient {
             out = output
             synchronized(sendLock) {
                 output.write(Protocol.encodeMessage(MsgType.HELLO,
-                    Protocol.encodeHello(Protocol.VERSION, width, height, density, name, id)))
+                    Protocol.encodeHello(Protocol.VERSION, width, height, density, name, id,
+                        fps, audioWanted, orientationCode)))
                 output.flush()
             }
 

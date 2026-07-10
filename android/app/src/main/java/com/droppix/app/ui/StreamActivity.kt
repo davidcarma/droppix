@@ -190,7 +190,8 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                         Log.i(TAG, "aoa: streaming (attempt $attempt)")
                         c.runOverChannel(FileInputStream(pfd.fileDescriptor),
                             FileOutputStream(pfd.fileDescriptor), 1920, 1080,
-                            resources.displayMetrics.densityDpi, listener, { running }, stats,
+                            resources.displayMetrics.densityDpi, 0, 0, 0,
+                            listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity))
                         Log.i(TAG, "aoa: session ended")
@@ -211,7 +212,8 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                     try {
                         Log.i(TAG, "connecting to $host:$port")
                         c.run(host, port, 1920, 1080,
-                            resources.displayMetrics.densityDpi, listener, { running }, stats,
+                            resources.displayMetrics.densityDpi, 0, 0, 0,
+                            listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity),
                             tlsTrust = tlsTrust)
