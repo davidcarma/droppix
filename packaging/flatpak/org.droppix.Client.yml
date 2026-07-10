@@ -1,0 +1,57 @@
+app-id: org.droppix.Client
+runtime: org.kde.Platform
+runtime-version: '6.10'
+sdk: org.kde.Sdk
+command: droppix_client
+
+# The client is a plain decode-only receiver: it connects to a droppix host over the
+# network, decodes H.264 to a QVideoWidget and plays PCM via QAudioSink, and sends touch
+# back. Nothing host-privileged, so — unlike the host Flatpak — the sandbox stays ON.
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio          # QAudioSink playback
+  - --share=ipc
+  - --share=network
+  - --device=dri                 # GPU-accelerated QVideoWidget presentation
+  - --filesystem=xdg-config/droppix_client:create   # host store + pinned TLS certs
+
+modules:
+  # Decode-only ffmpeg. The KDE runtime ships ffmpeg, but its codec set can't be relied
+  # on across versions, so build our own avcodec/avutil/swscale with the built-in H.264
+  # DEcoder (no libx264 — that's the encoder, host-only). Matches the libs the client links.
+  - name: ffmpeg
+    buildsystem: simple
+    build-commands:
+      - ./configure --prefix=/app --enable-shared --disable-static --disable-programs
+        --disable-doc --disable-encoders --disable-muxers --disable-devices
+      - make -j$(nproc)
+      - make install
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz
+        sha256: 40973d44970dbc83ef302b0609f2e74982be2d85916dd2ee7472d30678a7abe6
+
+  - name: droppix-client
+    buildsystem: simple
+    build-commands:
+      # The client CMakeLists reaches host/src by relative path (protocol.cpp + pure
+      # headers), so both trees are staged side by side below to preserve ../host/src.
+      - cmake -G Ninja -B _build -S client -DCMAKE_BUILD_TYPE=Release
+        -DDROPPIX_CLIENT_BUILD_TESTS=OFF -DCMAKE_PREFIX_PATH=/app -DCMAKE_LIBRARY_PATH=/app/lib
+      - ninja -C _build droppix_client
+      - install -Dm755 _build/droppix_client /app/bin/droppix_client
+      - install -Dm644 host/icons/droppix-256.png /app/share/icons/hicolor/256x256/apps/org.droppix.Client.png
+      - install -Dm644 org.droppix.Client.desktop /app/share/applications/org.droppix.Client.desktop
+      - install -Dm644 org.droppix.Client.metainfo.xml /app/share/metainfo/org.droppix.Client.metainfo.xml
+    sources:
+      - type: dir
+        path: ../../client
+        dest: client
+      - type: dir
+        path: ../../host
+        dest: host
+      - type: file
+        path: org.droppix.Client.desktop
+      - type: file
+        path: org.droppix.Client.metainfo.xml

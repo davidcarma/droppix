@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.droppix.Client</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Droppix Client</name>
+  <summary>Use this PC as a second monitor for a droppix host</summary>
+  <description>
+    <p>
+      The droppix client turns a Linux PC into an extended display for a droppix host:
+      it connects over USB or WiFi, decodes the H.264 stream to a window, plays the
+      host's audio, and sends touch/mouse input back — the desktop counterpart to the
+      droppix Android app.
+    </p>
+    <p>
+      Fully self-contained: it only needs a droppix host to connect to. No KDE, evdi,
+      or root required on this machine.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.droppix.Client.desktop</launchable>
+  <url type="homepage">https://github.com/Spinjitsudoom/droppix</url>
+  <developer id="org.droppix">
+    <name>droppix</name>
+  </developer>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1" date="2026-07-10"/>
+  </releases>
+</component>

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Droppix Client
+Comment=Use this PC as a second monitor for a droppix host
+Exec=droppix_client
+Icon=org.droppix.Client
+Categories=Utility;Network;
+Terminal=false
