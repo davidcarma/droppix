@@ -43,6 +43,7 @@ add_library(droppix_core
   src/aoa_connect.cpp
   src/aoa_scan.cpp
   src/desktop_backend.cpp
+  src/session_params.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -128,6 +129,7 @@ add_executable(droppix_tests
   tests/test_monitor_geometry.cpp
   tests/test_orientation.cpp
   tests/test_audio_streamer.cpp
+  tests/test_session_params.cpp
   tests/test_approval.cpp
   tests/test_wake.cpp
   tests/test_tether_discovery.cpp
