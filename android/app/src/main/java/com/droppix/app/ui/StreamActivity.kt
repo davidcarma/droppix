@@ -138,6 +138,12 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
     private fun startStreaming() {
         if (running) return
         running = true
+        val settings = com.droppix.app.settings.SettingsStore(this).load()
+        val real = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(real)
+        val (sendW, sendH) = com.droppix.app.settings.Resolutions.resolve(settings, real.widthPixels, real.heightPixels)
+        val sendFps = settings.fps
+        val sendAudio = if (settings.audio) 1 else 0
         netThread = thread(name = "droppix-net") {
             val c = TransportClient()
             val tlsTrust = TlsTrust(this@StreamActivity)
@@ -189,8 +195,8 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                     try {
                         Log.i(TAG, "aoa: streaming (attempt $attempt)")
                         c.runOverChannel(FileInputStream(pfd.fileDescriptor),
-                            FileOutputStream(pfd.fileDescriptor), 1920, 1080,
-                            resources.displayMetrics.densityDpi, 0, 0, 0,
+                            FileOutputStream(pfd.fileDescriptor), sendW, sendH,
+                            resources.displayMetrics.densityDpi, sendFps, sendAudio, orientationMapper.currentCode(),
                             listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity))
@@ -211,8 +217,8 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                 while (running) {
                     try {
                         Log.i(TAG, "connecting to $host:$port")
-                        c.run(host, port, 1920, 1080,
-                            resources.displayMetrics.densityDpi, 0, 0, 0,
+                        c.run(host, port, sendW, sendH,
+                            resources.displayMetrics.densityDpi, sendFps, sendAudio, orientationMapper.currentCode(),
                             listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity),
