@@ -11,6 +11,7 @@ import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.TextView
 import android.content.Context
 import android.hardware.usb.UsbAccessory
@@ -48,10 +49,6 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
     @Volatile private var client: TransportClient? = null
     @Volatile private var audioPlayer: AudioPlayer? = null
     private lateinit var surfaceView: DisplaySurfaceView
-    // Settings the current streaming session was started with; compared on resume so a
-    // Settings-activity round-trip (long-press -> change -> back) can reconnect with the new
-    // values instead of silently keeping the stale connection.
-    private var lastSettings: com.droppix.app.settings.AppSettings? = null
 
     // Auto-orientation: the Activity follows the sensor (manifest fullSensor) so Android
     // rotates the display naturally. We detect the physical orientation and report it; on
@@ -77,8 +74,11 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_stream)
         surfaceView = findViewById(R.id.surface)
-        surfaceView.setOnLongClickListener {
-            startActivity(android.content.Intent(this, SettingsActivity::class.java)); true
+        // In-stream entry point to Settings. Must be a real overlay View (topmost FrameLayout
+        // child) rather than a long-press on the surface: DisplaySurfaceView.onTouchEvent
+        // consumes MotionEvents without calling super, so View long-press detection never runs.
+        findViewById<Button>(R.id.settings_overlay_btn).setOnClickListener {
+            startActivity(android.content.Intent(this, SettingsActivity::class.java))
         }
         overlay = findViewById(R.id.overlay)
         overlay.visibility = View.GONE   // shown only if the host asks (Settings → performance overlay)
@@ -112,15 +112,6 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
 
     override fun onResume() {
         super.onResume()
-        // Apply a settings change made while streaming: if SettingsActivity was opened (long-press)
-        // and the user changed something, reconnect so the new resolution/fps/audio take effect.
-        // Normally onPause already stopped streaming (running == false) and the surface-listener
-        // re-attach below restarts it with a fresh SettingsStore load anyway; this guard also
-        // covers the case where streaming is still running when onResume fires.
-        val now = com.droppix.app.settings.SettingsStore(this).load()
-        if (running && lastSettings != null && now != lastSettings) {
-            stopStreaming(); startStreaming()
-        }
         surfaceView.setSurfaceListener(this)  // fires onSurfaceReady if already valid
         surfaceView.setTouchListener(object : DisplaySurfaceView.TouchListener {
             override fun onTouch(contacts: List<com.droppix.app.protocol.Contact>) {
@@ -154,8 +145,11 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
     private fun startStreaming() {
         if (running) return
         running = true
+        // Fresh load each time we start: returning from SettingsActivity resumes the Activity,
+        // and the onResume -> setSurfaceListener -> onSurfaceReady -> startStreaming path re-reads
+        // the just-saved settings here, so a settings change made mid-stream reconnects with the
+        // new resolution/fps/audio. (onPause already stopped the previous session.)
         val settings = com.droppix.app.settings.SettingsStore(this).load()
-        lastSettings = settings
         val real = android.util.DisplayMetrics()
         @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(real)
         val (sendW, sendH) = com.droppix.app.settings.Resolutions.resolve(settings, real.widthPixels, real.heightPixels)
