@@ -25,7 +25,7 @@ class SettingsActivity : Activity() {
         val qualityKbps = listOf(4000, 8000, 16000)                 // Low / Medium / High
         val qualityLabels = listOf("Low", "Medium", "High")
         qualitySpinner.adapter = lightAdapter(qualityLabels)
-        qualitySpinner.setSelection(qualityKbps.indexOf(cur.bitrateKbps).coerceAtLeast(1))  // default Medium
+        qualitySpinner.setSelection(qualityKbps.indexOf(cur.bitrateKbps).let { if (it == -1) 1 else it })  // index for the stored bitrate; default Medium only if not one of the presets
 
         val rotationSpinner = findViewById<Spinner>(R.id.rotation_spinner)
         rotationSpinner.adapter = lightAdapter(listOf("Auto", "Locked"))
