@@ -120,6 +120,14 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
                 client?.sendTouch(contacts)
             }
         })
+        surfaceView.setMouseListener(object : GlDisplayView.MouseListener {
+            override fun onScroll(dx: Int, dy: Int, x: Int, y: Int) {
+                client?.sendScroll(dx, dy, x, y)
+            }
+            override fun onMouseButton(button: Int, action: Int, x: Int, y: Int) {
+                client?.sendMouseButton(button, action, x, y)
+            }
+        })
         uiHandler.post(overlayTick)
         orientationListener?.takeIf { it.canDetectOrientation() }?.enable()
     }
@@ -129,6 +137,7 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
         uiHandler.removeCallbacks(overlayTick)
         orientationListener?.disable()
         surfaceView.setTouchListener(null)
+        surfaceView.setMouseListener(null)
         surfaceView.setSurfaceListener(null)
         stopStreaming()
     }

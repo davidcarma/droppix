@@ -7,6 +7,7 @@ import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.AttributeSet
+import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -32,8 +33,16 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     // sent to the host every event. An empty list means all fingers lifted.
     interface TouchListener { fun onTouch(contacts: List<Contact>) }
 
+    // Physical-mouse extras (scroll wheel, right/middle click); cursor movement and left-click
+    // stay on the existing touch path above. x/y are normalized 0..65535 the same way as touch.
+    interface MouseListener {
+        fun onScroll(dx: Int, dy: Int, x: Int, y: Int)
+        fun onMouseButton(button: Int, action: Int, x: Int, y: Int)
+    }
+
     private var surfaceListener: SurfaceListener? = null
     private var touchListener: TouchListener? = null
+    @Volatile private var mouseListener: MouseListener? = null
     private var lastMoveSentMs = 0L
     private val moveMinIntervalMs = 12L   // coalesce MOVEs to ~80 Hz max
 
@@ -62,8 +71,51 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     }
 
     fun setTouchListener(l: TouchListener?) { touchListener = l }
+    fun setMouseListener(l: MouseListener?) { mouseListener = l }
+
+    // Same 0..65535 normalization the touch-contact loop below applies (view-local pixels ->
+    // fraction of width/height, clamped, scaled). Reused by the mouse scroll/button branches so
+    // both input paths land on identical coordinates.
+    private fun normX(x: Float): Int {
+        val w = width.coerceAtLeast(1)
+        return ((x / w).coerceIn(0f, 1f) * 65535f).toInt()
+    }
+    private fun normY(y: Float): Int {
+        val h = height.coerceAtLeast(1)
+        return ((y / h).coerceIn(0f, 1f) * 65535f).toInt()
+    }
+
+    // Mouse wheel: SOURCE_MOUSE ACTION_SCROLL carries the wheel delta as axis values, not a
+    // pointer move, so it arrives here rather than onTouchEvent. Cursor movement/left-click are
+    // untouched — they still flow through the existing touch path.
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.source and InputDevice.SOURCE_MOUSE != 0 && event.action == MotionEvent.ACTION_SCROLL) {
+            val v = Math.round(event.getAxisValue(MotionEvent.AXIS_VSCROLL))
+            val h = Math.round(event.getAxisValue(MotionEvent.AXIS_HSCROLL))
+            if (v != 0 || h != 0) mouseListener?.onScroll(h, v, normX(event.x), normY(event.y))
+            return true
+        }
+        return super.onGenericMotionEvent(event)
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Physical-mouse right/middle click: reported as SOURCE_MOUSE BUTTON_PRESS/RELEASE
+        // rather than a finger down/up, so it's branched off before the touch/left-click path
+        // below (which handles ACTION_DOWN/MOVE/UP etc. for both fingers and the mouse's primary
+        // button unchanged).
+        if (event.source and InputDevice.SOURCE_MOUSE != 0 &&
+            (event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS || event.actionMasked == MotionEvent.ACTION_BUTTON_RELEASE)) {
+            val down = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
+            val btn = when (event.actionButton) {
+                MotionEvent.BUTTON_SECONDARY -> 1   // right
+                MotionEvent.BUTTON_TERTIARY -> 2    // middle
+                else -> 0
+            }
+            if (btn != 0) {
+                mouseListener?.onMouseButton(btn, if (down) 1 else 0, normX(event.x), normY(event.y))
+                return true
+            }
+        }
         val l = touchListener ?: return false
         val masked = event.actionMasked
         when (masked) {

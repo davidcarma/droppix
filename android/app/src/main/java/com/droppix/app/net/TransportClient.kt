@@ -46,6 +46,19 @@ class TransportClient {
         submitSend(o, msg)
     }
 
+    // Thread-safe: called from the UI thread while run() reads on the net thread.
+    fun sendScroll(dx: Int, dy: Int, x: Int, y: Int) {
+        val o = out ?: return
+        val msg = Protocol.encodeMessage(MsgType.SCROLL, Protocol.encodeScroll(dx, dy, x, y))
+        submitSend(o, msg)
+    }
+
+    fun sendMouseButton(button: Int, action: Int, x: Int, y: Int) {
+        val o = out ?: return
+        val msg = Protocol.encodeMessage(MsgType.MOUSE_BUTTON, Protocol.encodeMouseButton(button, action, x, y))
+        submitSend(o, msg)
+    }
+
     // Encode on the caller; write on the background sender so UI-thread callers don't
     // hit NetworkOnMainThreadException. sendLock still serializes against net-thread writes.
     private fun submitSend(o: java.io.OutputStream, msg: ByteArray) {
