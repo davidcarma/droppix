@@ -8,6 +8,7 @@ ClientSettings ClientSettingsStore::load() {
   s.width = q.value("width", 0).toInt();   s.height = q.value("height", 0).toInt();
   s.fps = q.value("fps", 60).toInt();      s.audio = q.value("audio", false).toBool();
   s.rotation = q.value("rotation", 0).toInt();
+  s.bitrate_kbps = q.value("bitrate", 8000).toInt();
   return s;
 }
 void ClientSettingsStore::save(const ClientSettings& s) {
@@ -15,5 +16,6 @@ void ClientSettingsStore::save(const ClientSettings& s) {
   q.setValue("width", s.width);   q.setValue("height", s.height);
   q.setValue("fps", s.fps);       q.setValue("audio", s.audio);
   q.setValue("rotation", s.rotation);
+  q.setValue("bitrate", s.bitrate_kbps);
 }
 }  // namespace droppix

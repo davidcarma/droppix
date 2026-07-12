@@ -18,3 +18,10 @@ TEST(ClientSettings, SaveLoadRoundTrip) {
   EXPECT_EQ(r.width,1280); EXPECT_EQ(r.height,720); EXPECT_EQ(r.fps,30);
   EXPECT_TRUE(r.audio); EXPECT_EQ(r.rotation,90);
 }
+TEST(ClientSettings, BitrateDefaultAndRoundTrip) {
+  static int argc = 0; static QCoreApplication app(argc, nullptr);
+  QSettings::setDefaultFormat(QSettings::IniFormat);   // avoid touching the real config
+  droppix::ClientSettings s; EXPECT_EQ(s.bitrate_kbps, 8000);
+  s.bitrate_kbps = 16000; droppix::ClientSettingsStore::save(s);
+  EXPECT_EQ(droppix::ClientSettingsStore::load().bitrate_kbps, 16000);
+}
