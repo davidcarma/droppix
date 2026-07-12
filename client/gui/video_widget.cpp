@@ -1,6 +1,7 @@
 #include "video_widget.h"
 #include <QMouseEvent>
 #include <QTouchEvent>
+#include <QWheelEvent>
 #include <QDateTime>
 #include <algorithm>
 
@@ -49,15 +50,19 @@ bool VideoWidget::event(QEvent* e) {
   }
 }
 
+namespace {
+// Wire button codes for MsgType::MouseButton (see protocol.h): 1=right, 2=middle.
+uint8_t wireButton(Qt::MouseButton b) {
+  return b == Qt::RightButton ? 1 : 2;
+}
+}  // namespace
+
 void VideoWidget::mousePressEvent(QMouseEvent* e) {
-  if (e->button() == Qt::RightButton) {
-    // Synthesize a brief two-contact tap at the same point (immediately followed by
-    // release) to trigger the host's existing two-finger-tap-to-right-click detector
-    // (host/src/tap_gesture.cpp) — there is no dedicated "right click" wire message.
-    auto a = normalize(e->position().x(), e->position().y(), 1.0, 0);
-    auto b = normalize(e->position().x(), e->position().y(), 1.0, 1);
-    emitContacts({a, b});
-    emitContacts({});
+  if (e->button() == Qt::RightButton || e->button() == Qt::MiddleButton) {
+    if (mouseButtonCb_) {
+      auto n = normalize(e->position().x(), e->position().y(), 1.0, 0);
+      mouseButtonCb_(wireButton(e->button()), 1, n.x, n.y);
+    }
     return;
   }
   if (e->button() == Qt::LeftButton) {
@@ -75,9 +80,27 @@ void VideoWidget::mouseMoveEvent(QMouseEvent* e) {
 }
 
 void VideoWidget::mouseReleaseEvent(QMouseEvent* e) {
+  if (e->button() == Qt::RightButton || e->button() == Qt::MiddleButton) {
+    if (mouseButtonCb_) {
+      auto n = normalize(e->position().x(), e->position().y(), 1.0, 0);
+      mouseButtonCb_(wireButton(e->button()), 0, n.x, n.y);
+    }
+    return;
+  }
   if (e->button() != Qt::LeftButton) return;
   mouseDown_ = false;
   emitContacts({});
+}
+
+void VideoWidget::wheelEvent(QWheelEvent* e) {
+  QPoint d = e->angleDelta();
+  int dx = d.x() / 120;
+  int dy = d.y() / 120;
+  if (scrollCb_ && (dx || dy)) {
+    auto n = normalize(e->position().x(), e->position().y(), 1.0, 0);
+    scrollCb_(dx, dy, n.x, n.y);
+  }
+  e->accept();
 }
 
 }  // namespace droppix

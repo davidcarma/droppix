@@ -13,10 +13,9 @@ namespace droppix {
 // android/.../ui/DisplaySurfaceView.kt for the algorithm this mirrors:
 //   - a real touchscreen's QTouchEvent points map 1:1 to contacts (multi-touch works)
 //   - without one, left-click+drag synthesizes a single contact (down/move/up)
-//   - right-click synthesizes a brief two-contact tap at the same point, to trigger the
-//     HOST's existing two-finger-tap-to-right-click gesture (host/src/tap_gesture.cpp) —
-//     the wire protocol has no dedicated "right click" message, so this reuses the
-//     mechanism the host already has rather than inventing a new one.
+//   - right/middle mouse buttons and the wheel are sent directly as dedicated wire
+//     messages (MsgType::MouseButton / MsgType::Scroll, see protocol.h) rather than
+//     synthesized as touch contacts.
 //   - MOVE is throttled to ~12ms (~83Hz) so a drag can't flood the host; DOWN/UP/CANCEL
 //     are never throttled (a dropped "up" would leave a phantom finger stuck down).
 //   - coordinates normalize to the widget's current pixel size, into 0..65535; pressure
@@ -30,11 +29,21 @@ class VideoWidget : public QVideoWidget {
   using TouchCallback = std::function<void(const std::vector<TouchContact>&)>;
   void setTouchCallback(TouchCallback cb) { onTouch_ = std::move(cb); }
 
+  // dx/dy: wheel notches (angleDelta()/120); x/y: 0..65535 normalized pointer position.
+  using ScrollCallback = std::function<void(int dx, int dy, uint16_t x, uint16_t y)>;
+  void setScrollCallback(ScrollCallback cb) { scrollCb_ = std::move(cb); }
+
+  // button: 1=right, 2=middle; action: 0=up, 1=down; x/y: 0..65535 normalized position.
+  using MouseButtonCallback = std::function<void(uint8_t button, uint8_t action,
+                                                 uint16_t x, uint16_t y)>;
+  void setMouseButtonCallback(MouseButtonCallback cb) { mouseButtonCb_ = std::move(cb); }
+
  protected:
   bool event(QEvent* e) override;         // QTouchEvent path
   void mousePressEvent(QMouseEvent* e) override;
   void mouseMoveEvent(QMouseEvent* e) override;
   void mouseReleaseEvent(QMouseEvent* e) override;
+  void wheelEvent(QWheelEvent* e) override;
 
  private:
   void emitContacts(const std::vector<TouchContact>& contacts);
@@ -43,6 +52,8 @@ class VideoWidget : public QVideoWidget {
   }
 
   TouchCallback onTouch_;
+  ScrollCallback scrollCb_;
+  MouseButtonCallback mouseButtonCb_;
   qint64 lastMoveSentMs_ = 0;
   bool mouseDown_ = false;
   static constexpr qint64 kMoveMinIntervalMs = 12;

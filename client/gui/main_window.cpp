@@ -60,6 +60,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   video_->setTouchCallback([this](const std::vector<TouchContact>& contacts) {
     if (client_) client_->sendTouch(contacts);
   });
+  video_->setScrollCallback([this](int dx, int dy, uint16_t x, uint16_t y) {
+    if (client_) client_->sendScroll(dx, dy, x, y);
+  });
+  video_->setMouseButtonCallback([this](uint8_t button, uint8_t action, uint16_t x, uint16_t y) {
+    if (client_) client_->sendMouseButton(button, action, x, y);
+  });
 
   audioPlayer_ = new AudioPlayer(this);
   decoder_ = std::make_unique<VideoDecoder>();

@@ -52,6 +52,21 @@ void TransportClient::sendOrientation(uint8_t code) {
   channel_->send_all(msg.data(), msg.size());
 }
 
+void TransportClient::sendScroll(int dx, int dy, uint16_t x, uint16_t y) {
+  std::lock_guard<std::mutex> lk(sendLock_);
+  if (!channel_) return;
+  auto msg = encode_message(MsgType::Scroll,
+      encode_scroll(static_cast<int16_t>(dx), static_cast<int16_t>(dy), x, y));
+  channel_->send_all(msg.data(), msg.size());
+}
+
+void TransportClient::sendMouseButton(uint8_t button, uint8_t action, uint16_t x, uint16_t y) {
+  std::lock_guard<std::mutex> lk(sendLock_);
+  if (!channel_) return;
+  auto msg = encode_message(MsgType::MouseButton, encode_mouse_button(button, action, x, y));
+  channel_->send_all(msg.data(), msg.size());
+}
+
 void TransportClient::runOverChannel(ByteChannel& channel, uint32_t width, uint32_t height,
                                     uint32_t density, uint32_t fps, uint8_t audio_wanted,
                                     uint8_t orientation_code, uint32_t bitrate_kbps,
