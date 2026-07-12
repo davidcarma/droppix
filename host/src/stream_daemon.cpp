@@ -149,6 +149,8 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // so a geometry-query or uinput issue can never affect the display-only path.
   InputInjector injector;
   tx_.set_touch_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
+  tx_.set_scroll_handler(nullptr);
+  tx_.set_mouse_button_handler(nullptr);
   if (cfg_.touch && !have_output) {
     // We can't pin the touchscreen to the droppix output on this compositor (e.g. GNOME,
     // before its DesktopBackend exists) — injecting anyway moves the WRONG monitor's cursor.
@@ -159,6 +161,12 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
     if (injector.open(cfg_.touch_name)) {
       tx_.set_touch_handler([&injector](const std::vector<TouchContact>& contacts) {
         injector.inject(contacts);
+      });
+      tx_.set_scroll_handler([&injector](int16_t dx, int16_t dy, uint16_t x, uint16_t y) {
+        injector.scroll(dx, dy, x, y);
+      });
+      tx_.set_mouse_button_handler([&injector](uint8_t b, uint8_t a, uint16_t x, uint16_t y) {
+        injector.mouse_button(b, a != 0, x, y);
       });
       std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                    droppix.name.c_str(), droppix.geom.w, droppix.geom.h);

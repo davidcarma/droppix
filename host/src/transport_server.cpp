@@ -155,6 +155,12 @@ void TransportServer::poll_control() {
     } else if (m.type == MsgType::Orientation && orientation_handler_) {
       uint8_t code;
       if (decode_orientation(m.body, code)) orientation_handler_(code);
+    } else if (m.type == MsgType::Scroll && scroll_handler_) {
+      int16_t dx, dy; uint16_t x, y;
+      if (decode_scroll(m.body, dx, dy, x, y)) scroll_handler_(dx, dy, x, y);
+    } else if (m.type == MsgType::MouseButton && mouse_button_handler_) {
+      uint8_t button, action; uint16_t x, y;
+      if (decode_mouse_button(m.body, button, action, x, y)) mouse_button_handler_(button, action, x, y);
     }
   }
 }

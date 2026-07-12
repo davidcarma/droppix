@@ -133,6 +133,26 @@ TEST(TransportServer, HandshakeThenVideo) {
   EXPECT_TRUE(client_ok);
 }
 
+TEST(TransportServer, ScrollHandlerFires) {
+  TransportServer s;
+  auto fake = std::make_unique<FakeChannel>();
+  fake->to_recv = encode_message(MsgType::Scroll, encode_scroll(-2, 4, 500, 600));
+  s.adopt_channel(std::move(fake), "test");
+
+  int16_t gdx = 0, gdy = 0; uint16_t gx = 0, gy = 0; bool fired = false;
+  s.set_scroll_handler([&](int16_t dx, int16_t dy, uint16_t x, uint16_t y) {
+    gdx = dx; gdy = dy; gx = x; gy = y; fired = true;
+  });
+
+  s.poll_control();
+
+  EXPECT_TRUE(fired);
+  EXPECT_EQ(gdx, -2);
+  EXPECT_EQ(gdy, 4);
+  EXPECT_EQ(gx, 500u);
+  EXPECT_EQ(gy, 600u);
+}
+
 TEST(TransportServer, RelistenClosesOldSocketAndSucceeds) {
   TransportServer s;
   ASSERT_TRUE(s.listen(0));        // ephemeral
