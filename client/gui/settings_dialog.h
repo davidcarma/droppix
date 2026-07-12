@@ -25,6 +25,7 @@ class ClientSettingsDialog : public QDialog {
   QCheckBox* audio_;
   QComboBox* rotation_;
   QComboBox* bitrate_;
+  QCheckBox* flip_;
 };
 
 }  // namespace droppix

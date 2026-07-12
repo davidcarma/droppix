@@ -142,6 +142,11 @@ void MainWindow::netThreadMain(QString hostQ, quint16 port) {
   const uint8_t audio = settings_.audio ? 1 : 0;
   const uint8_t orient = static_cast<uint8_t>(rotation_to_code(settings_.rotation));
   const uint32_t bitrate = static_cast<uint32_t>(settings_.bitrate_kbps);
+  // decoder_ is touched only by netThread_ (see main_window.h); applying the flip setting
+  // here, once per netThreadMain invocation, means both the initial connect and any
+  // settings-triggered reconnect (stopSession+startSession spawns a fresh netThreadMain)
+  // pick up the current settings_.flip_horizontal before any frames are submitted.
+  decoder_->setFlipHorizontal(settings_.flip_horizontal);
 
   StreamListenerImpl listener(this, video_, decoder_.get(), audioPlayer_);
 

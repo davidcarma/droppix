@@ -40,12 +40,16 @@ ClientSettingsDialog::ClientSettingsDialog(const ClientSettings& cur, const QStr
   bitrate_->addItem("High", QVariant(16000));
   bitrate_->setCurrentIndex(std::max(0, bitrate_->findData(cur.bitrate_kbps)));
 
+  flip_ = new QCheckBox("Flip horizontal");
+  flip_->setChecked(cur.flip_horizontal);
+
   auto* form = new QFormLayout;
   form->addRow("Resolution:", resolution_);
   form->addRow("FPS:", fps_);
   form->addRow("", audio_);
   form->addRow("Rotation:", rotation_);
   form->addRow("Quality:", bitrate_);
+  form->addRow("", flip_);
 
   auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
   connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -66,6 +70,7 @@ ClientSettings ClientSettingsDialog::result() const {
   s.audio = audio_->isChecked();
   s.rotation = rotation_->currentData().toInt();
   s.bitrate_kbps = bitrate_->currentData().toInt();
+  s.flip_horizontal = flip_->isChecked();
   return s;
 }
 
