@@ -34,6 +34,9 @@ class SettingsActivity : Activity() {
         val overlaySwitch = findViewById<Switch>(R.id.overlay_switch)
         overlaySwitch.isChecked = cur.showOverlay
 
+        val flipSwitch = findViewById<Switch>(R.id.flip_switch)
+        flipSwitch.isChecked = cur.flipHorizontal
+
         findViewById<Button>(R.id.save_btn).setOnClickListener {
             val res = if (resSpinner.selectedItemPosition == 0) 0 to 0
                       else Resolutions.PRESETS[resSpinner.selectedItemPosition - 1]
@@ -43,7 +46,8 @@ class SettingsActivity : Activity() {
                 audioSwitch.isChecked,
                 qualityKbps[qualitySpinner.selectedItemPosition],
                 rotationSpinner.selectedItemPosition == 1,
-                overlaySwitch.isChecked))
+                overlaySwitch.isChecked,
+                flipSwitch.isChecked))
             finish()
         }
     }
