@@ -99,7 +99,9 @@ void MainWindow::onSettingsAction() {
   ClientSettings next = dlg.result();
   const bool changed = next.width != settings_.width || next.height != settings_.height ||
                        next.fps != settings_.fps || next.audio != settings_.audio ||
-                       next.rotation != settings_.rotation;
+                       next.rotation != settings_.rotation ||
+                       next.bitrate_kbps != settings_.bitrate_kbps ||
+                       next.flip_horizontal != settings_.flip_horizontal;
   settings_ = next;
   ClientSettingsStore::save(settings_);
   if (changed && running_.load()) {  // apply immediately: reconnect with the new HELLO
