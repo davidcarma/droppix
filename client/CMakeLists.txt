@@ -66,14 +66,16 @@ add_executable(droppix_client_tests
   tests/test_touch_normalizer.cpp
   tests/test_tls_trust.cpp
   tests/test_client_settings.cpp
+  tests/test_video_decoder_flip.cpp
   src/tls_trust.cpp
   src/client_settings.cpp
+  src/video_decoder.cpp
   ../host/src/protocol.cpp
 )
 target_include_directories(droppix_client_tests PRIVATE gui src ../host/src)
 target_link_libraries(droppix_client_tests PRIVATE
   Qt6::Widgets Qt6::Network Qt6::Multimedia OpenSSL::SSL OpenSSL::Crypto
-  GTest::gtest_main Threads::Threads)
+  PkgConfig::FFMPEG GTest::gtest_main Threads::Threads)
 include(GoogleTest)
 gtest_discover_tests(droppix_client_tests)
 endif()

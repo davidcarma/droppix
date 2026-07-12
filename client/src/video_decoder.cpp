@@ -9,6 +9,12 @@ extern "C" {
 
 namespace droppix {
 
+QVideoFrameFormat make_frame_format(int w, int h, bool mirrored) {
+  QVideoFrameFormat fmt(QSize(w, h), QVideoFrameFormat::Format_YUV420P);
+  fmt.setMirrored(mirrored);
+  return fmt;
+}
+
 VideoDecoder::VideoDecoder() {
   frame_ = av_frame_alloc();
   packet_ = av_packet_alloc();
@@ -56,8 +62,7 @@ std::vector<QVideoFrame> VideoDecoder::submit(const std::vector<unsigned char>& 
 
   while (avcodec_receive_frame(ctx_, frame_) == 0) {
     if (frame_->format != AV_PIX_FMT_YUV420P) { av_frame_unref(frame_); continue; }
-    QVideoFrameFormat fmt(QSize(frame_->width, frame_->height),
-                          QVideoFrameFormat::Format_YUV420P);
+    QVideoFrameFormat fmt = make_frame_format(frame_->width, frame_->height, flip_);
     QVideoFrame vf(fmt);
     if (vf.map(QVideoFrame::WriteOnly)) {
       for (int plane = 0; plane < 3; ++plane) {

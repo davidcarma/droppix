@@ -1,5 +1,6 @@
 #pragma once
 #include <QVideoFrame>
+#include <QVideoFrameFormat>
 #include <cstdint>
 #include <vector>
 
@@ -11,6 +12,11 @@ struct AVPacket;
 }
 
 namespace droppix {
+
+// Pure helper (no FFmpeg/decoder state involved) so the mirrored-format behavior is unit
+// testable without needing a real H.264 stream: builds the YUV420P QVideoFrameFormat that
+// submit() attaches to every produced QVideoFrame, applying the horizontal-flip setting.
+QVideoFrameFormat make_frame_format(int w, int h, bool mirrored);
 
 // FFmpeg-based H.264 decoder: feeds Annex-B access units (one VIDEO message body = one
 // access unit, SPS/PPS in-band ahead of every IDR — same assumption as the Android
@@ -32,10 +38,16 @@ class VideoDecoder {
 
   void close();
 
+  // Enables/disables mirroring the produced frame's format horizontally (see
+  // make_frame_format / ClientSettings::flip_horizontal). Takes effect on the next
+  // submit() call.
+  void setFlipHorizontal(bool f) { flip_ = f; }
+
  private:
   AVCodecContext* ctx_ = nullptr;
   AVFrame* frame_ = nullptr;
   AVPacket* packet_ = nullptr;
+  bool flip_ = false;
 };
 
 }  // namespace droppix
