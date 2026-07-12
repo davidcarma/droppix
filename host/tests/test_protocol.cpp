@@ -238,3 +238,18 @@ TEST(Protocol, HelloV4DecodesBitrateSentinelZero) {
   EXPECT_EQ(ver, 4u); EXPECT_EQ(br, 0u);         // no bitrate field on a v4 body
   EXPECT_EQ(name, "n"); EXPECT_EQ(id, "i");      // strings still parse (offset 22)
 }
+
+TEST(Protocol, ScrollRoundTrip) {
+  auto b = droppix::encode_scroll(-3, 5, 1000, 2000);
+  int16_t dx, dy; uint16_t x, y;
+  ASSERT_TRUE(droppix::decode_scroll(b, dx, dy, x, y));
+  EXPECT_EQ(dx, -3); EXPECT_EQ(dy, 5); EXPECT_EQ(x, 1000); EXPECT_EQ(y, 2000);
+  EXPECT_FALSE(droppix::decode_scroll({0,1,2}, dx, dy, x, y));   // too short
+}
+
+TEST(Protocol, MouseButtonRoundTrip) {
+  auto b = droppix::encode_mouse_button(2, 1, 1234, 5678);
+  uint8_t btn, act; uint16_t x, y;
+  ASSERT_TRUE(droppix::decode_mouse_button(b, btn, act, x, y));
+  EXPECT_EQ(btn, 2); EXPECT_EQ(act, 1); EXPECT_EQ(x, 1234); EXPECT_EQ(y, 5678);
+}

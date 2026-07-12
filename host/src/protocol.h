@@ -7,7 +7,7 @@ namespace droppix {
 
 enum class MsgType : uint8_t {
   Hello = 1, Config = 2, Video = 3, Ping = 4, Pong = 5, Bye = 6, Input = 7,
-  Orientation = 8, Audio = 9, Overlay = 10, Touch = 11
+  Orientation = 8, Audio = 9, Overlay = 10, Touch = 11, Scroll = 12, MouseButton = 13
 };
 
 // One finger in a multi-touch report. id is the app's pointer id (stable across a
@@ -98,6 +98,18 @@ bool decode_input(const std::vector<unsigned char>& body,
 // the FULL set of active contacts each event (count 0 = all up); capped at 10 contacts.
 std::vector<unsigned char> encode_touch(const std::vector<TouchContact>& contacts);
 bool decode_touch(const std::vector<unsigned char>& body, std::vector<TouchContact>& contacts);
+
+// SCROLL (app->host): i16 dx, i16 dy, u16 x, u16 y (8 bytes big-endian).
+std::vector<unsigned char> encode_scroll(int16_t dx, int16_t dy, uint16_t x, uint16_t y);
+bool decode_scroll(const std::vector<unsigned char>& body, int16_t& dx, int16_t& dy,
+                   uint16_t& x, uint16_t& y);
+
+// MOUSEBUTTON (app->host): u8 button (1=right, 2=middle), u8 action (0=up, 1=down),
+// u16 x, u16 y (6 bytes big-endian).
+std::vector<unsigned char> encode_mouse_button(uint8_t button, uint8_t action,
+                                               uint16_t x, uint16_t y);
+bool decode_mouse_button(const std::vector<unsigned char>& body, uint8_t& button,
+                         uint8_t& action, uint16_t& x, uint16_t& y);
 
 // ORIENTATION (app->host): u8 code (0=0°, 1=90°, 2=180°, 3=270°).
 std::vector<unsigned char> encode_orientation(uint8_t code);

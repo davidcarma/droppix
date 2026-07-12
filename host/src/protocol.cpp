@@ -200,6 +200,33 @@ bool decode_touch(const std::vector<unsigned char>& b, std::vector<TouchContact>
   return true;
 }
 
+std::vector<unsigned char> encode_scroll(int16_t dx, int16_t dy, uint16_t x, uint16_t y) {
+  std::vector<unsigned char> b;
+  auto u16 = [&](uint16_t v){ b.push_back((unsigned char)(v >> 8)); b.push_back((unsigned char)(v & 0xFF)); };
+  u16((uint16_t)dx); u16((uint16_t)dy); u16(x); u16(y);
+  return b;
+}
+bool decode_scroll(const std::vector<unsigned char>& b, int16_t& dx, int16_t& dy,
+                   uint16_t& x, uint16_t& y) {
+  if (b.size() < 8) return false;
+  auto u16 = [&](size_t o){ return (uint16_t)((b[o] << 8) | b[o+1]); };
+  dx = (int16_t)u16(0); dy = (int16_t)u16(2); x = u16(4); y = u16(6);
+  return true;
+}
+
+std::vector<unsigned char> encode_mouse_button(uint8_t button, uint8_t action,
+                                               uint16_t x, uint16_t y) {
+  return { button, action, (unsigned char)(x >> 8), (unsigned char)(x & 0xFF),
+           (unsigned char)(y >> 8), (unsigned char)(y & 0xFF) };
+}
+bool decode_mouse_button(const std::vector<unsigned char>& b, uint8_t& button,
+                         uint8_t& action, uint16_t& x, uint16_t& y) {
+  if (b.size() < 6) return false;
+  button = b[0]; action = b[1];
+  x = (uint16_t)((b[2] << 8) | b[3]); y = (uint16_t)((b[4] << 8) | b[5]);
+  return true;
+}
+
 std::vector<unsigned char> encode_orientation(uint8_t code) {
   return {code};
 }
