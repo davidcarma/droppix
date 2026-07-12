@@ -208,6 +208,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                         c.runOverChannel(FileInputStream(pfd.fileDescriptor),
                             FileOutputStream(pfd.fileDescriptor), sendW, sendH,
                             resources.displayMetrics.densityDpi, sendFps, sendAudio, orientationMapper.currentCode(),
+                            8000, // TODO(Task 7): use AppSettings bitrate
                             listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity))
@@ -230,6 +231,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                         Log.i(TAG, "connecting to $host:$port")
                         c.run(host, port, sendW, sendH,
                             resources.displayMetrics.densityDpi, sendFps, sendAudio, orientationMapper.currentCode(),
+                            8000, // TODO(Task 7): use AppSettings bitrate
                             listener, { running }, stats,
                             name = DeviceIdentity.displayName(this@StreamActivity),
                             id = DeviceIdentity.stableId(this@StreamActivity),
