@@ -221,3 +221,20 @@ TEST(Protocol, HelloSevenArgOverloadStillWorks) {
   ASSERT_TRUE(droppix::decode_hello(body, ver, w, h, d, name, id));  // 7-arg overload
   EXPECT_EQ(w, 800u); EXPECT_EQ(name, "a"); EXPECT_EQ(id, "b");
 }
+
+TEST(Protocol, HelloV5CarriesBitrate) {
+  auto body = droppix::encode_hello(5, 1280, 720, 160, "n", "i",
+                                    /*fps*/30, /*audio*/1, /*orient*/1, /*bitrate*/12000);
+  uint32_t ver, w, h, d, fps, br; uint8_t audio, ori; std::string name, id;
+  ASSERT_TRUE(droppix::decode_hello(body, ver, w, h, d, fps, audio, ori, br, name, id));
+  EXPECT_EQ(ver, 5u); EXPECT_EQ(fps, 30u); EXPECT_EQ(audio, 1); EXPECT_EQ(ori, 1);
+  EXPECT_EQ(br, 12000u); EXPECT_EQ(name, "n"); EXPECT_EQ(id, "i");
+}
+
+TEST(Protocol, HelloV4DecodesBitrateSentinelZero) {
+  auto body = droppix::encode_hello(4, 1280, 720, 160, "n", "i", 30, 1, 1 /*no bitrate*/);
+  uint32_t ver, w, h, d, fps, br; uint8_t audio, ori; std::string name, id;
+  ASSERT_TRUE(droppix::decode_hello(body, ver, w, h, d, fps, audio, ori, br, name, id));
+  EXPECT_EQ(ver, 4u); EXPECT_EQ(br, 0u);         // no bitrate field on a v4 body
+  EXPECT_EQ(name, "n"); EXPECT_EQ(id, "i");      // strings still parse (offset 22)
+}
