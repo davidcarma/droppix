@@ -20,10 +20,30 @@ class SettingsActivity : Activity() {
         fpsSpinner.adapter = lightAdapter(fpsItems.map { it.toString() })
         fpsSpinner.setSelection(fpsItems.indexOf(cur.fps).coerceAtLeast(0))
         val audioSwitch = findViewById<Switch>(R.id.audio_switch); audioSwitch.isChecked = cur.audio
+
+        val qualitySpinner = findViewById<Spinner>(R.id.quality_spinner)
+        val qualityKbps = listOf(4000, 8000, 16000)                 // Low / Medium / High
+        val qualityLabels = listOf("Low", "Medium", "High")
+        qualitySpinner.adapter = lightAdapter(qualityLabels)
+        qualitySpinner.setSelection(qualityKbps.indexOf(cur.bitrateKbps).coerceAtLeast(1))  // default Medium
+
+        val rotationSpinner = findViewById<Spinner>(R.id.rotation_spinner)
+        rotationSpinner.adapter = lightAdapter(listOf("Auto", "Locked"))
+        rotationSpinner.setSelection(if (cur.rotationLocked) 1 else 0)
+
+        val overlaySwitch = findViewById<Switch>(R.id.overlay_switch)
+        overlaySwitch.isChecked = cur.showOverlay
+
         findViewById<Button>(R.id.save_btn).setOnClickListener {
             val res = if (resSpinner.selectedItemPosition == 0) 0 to 0
                       else Resolutions.PRESETS[resSpinner.selectedItemPosition - 1]
-            store.save(AppSettings(res.first, res.second, fpsItems[fpsSpinner.selectedItemPosition], audioSwitch.isChecked))
+            store.save(AppSettings(
+                res.first, res.second,
+                fpsItems[fpsSpinner.selectedItemPosition],
+                audioSwitch.isChecked,
+                qualityKbps[qualitySpinner.selectedItemPosition],
+                rotationSpinner.selectedItemPosition == 1,
+                overlaySwitch.isChecked))
             finish()
         }
     }
