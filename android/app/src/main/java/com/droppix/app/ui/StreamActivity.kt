@@ -44,6 +44,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
 
     @Volatile private var running = false
     @Volatile private var rotationLocked = false
+    @Volatile private var localOverlayWanted = false
     @Volatile private var surface: Surface? = null
     private var netThread: Thread? = null
     @Volatile private var decoder: VideoDecoder? = null
@@ -162,6 +163,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
         else
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        localOverlayWanted = settings.showOverlay
         overlay.visibility = if (settings.showOverlay) View.VISIBLE else View.GONE
         netThread = thread(name = "droppix-net") {
             val c = TransportClient()
@@ -189,7 +191,7 @@ class StreamActivity : Activity(), DisplaySurfaceView.SurfaceListener {
                 }
                 override fun onAudio(pcm: ByteArray) { player.submit(pcm) }
                 override fun onOverlay(show: Boolean) {
-                    runOnUiThread { overlay.visibility = if (show) View.VISIBLE else View.GONE }
+                    runOnUiThread { overlay.visibility = if (show || localOverlayWanted) View.VISIBLE else View.GONE }
                 }
             }
             val acc = aoaAccessory
