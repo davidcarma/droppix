@@ -32,13 +32,13 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   // Fires during the tablet's TLS pairing probe too (it connects, grabs the cert, then
   // prompts for the PIN) — the GUI uses this to show the pairing code right on time.
   std::fprintf(stderr, "client-connecting ip=%s\n", tx_.peer_ip().c_str());
-  uint32_t cver, cw, ch, density, hfps; uint8_t haudio, hori; std::string cname, cid;
-  if (!tx_.read_hello(cver, cw, ch, density, hfps, haudio, hori, cname, cid, 10000)) {
+  uint32_t cver, cw, ch, density, hfps, hbitrate; uint8_t haudio, hori; std::string cname, cid;
+  if (!tx_.read_hello(cver, cw, ch, density, hfps, haudio, hori, hbitrate, cname, cid, 10000)) {
     std::fprintf(stderr, "no HELLO\n"); return false; }
   std::fprintf(stderr, "client HELLO v%u %ux%u fps=%u audio=%u orient=%u name=%s id=%s\n",
                cver, cw, ch, hfps, haudio, hori, cname.c_str(), cid.c_str());
   const SessionParams sp = select_session_params(cver, hfps, haudio, hori,
-                                                 0, cfg_.fps, cfg_.audio, cfg_.orientation, cfg_.bitrate_kbps);
+                                                 hbitrate, cfg_.fps, cfg_.audio, cfg_.orientation, cfg_.bitrate_kbps);
 
   // Approval gates real remote (Wi-Fi) peers only. An empty peer ip means USB/AOA
   // (adopt_channel over the cable) — physically trusted, like localhost — so it must
@@ -74,7 +74,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
   std::fprintf(stderr, "source %dx%d\n", w, h);
 
-  if (!enc_.open(w, h, sp.fps, cfg_.bitrate_kbps)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
+  if (!enc_.open(w, h, sp.fps, sp.bitrate)) { std::fprintf(stderr, "encoder open failed\n"); return false; }
   if (!tx_.send_config(w, h, sp.fps, enc_.extradata())) return false;
   // Seed the app's overlay from the live host-side toggle if present (so a reconnect
   // keeps whatever the GUI last set), else the start-up flag. Tracked below so the
