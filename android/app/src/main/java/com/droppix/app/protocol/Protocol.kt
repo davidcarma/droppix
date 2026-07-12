@@ -2,7 +2,7 @@ package com.droppix.app.protocol
 
 enum class MsgType(val code: Int) {
     HELLO(1), CONFIG(2), VIDEO(3), PING(4), PONG(5), BYE(6), INPUT(7), ORIENTATION(8),
-    AUDIO(9), OVERLAY(10), TOUCH(11);
+    AUDIO(9), OVERLAY(10), TOUCH(11), SCROLL(12), MOUSE_BUTTON(13);
     companion object {
         fun fromCode(c: Int): MsgType? = entries.firstOrNull { it.code == c }
     }
@@ -81,6 +81,23 @@ object Protocol {
 
     // ORIENTATION body: u8 code (0=0°, 1=90°, 2=180°, 3=270°).
     fun encodeOrientation(code: Int): ByteArray = byteArrayOf(code.toByte())
+
+    // SCROLL body: i16 dx, i16 dy, u16 x, u16 y (big-endian).
+    fun encodeScroll(dx: Int, dy: Int, x: Int, y: Int): ByteArray {
+        val out = ArrayList<Byte>(8)
+        fun u16(v: Int) { out.add((v ushr 8).toByte()); out.add(v.toByte()) }
+        u16(dx); u16(dy); u16(x); u16(y)
+        return out.toByteArray()
+    }
+
+    // MOUSE_BUTTON body: u8 button, u8 action, u16 x, u16 y (big-endian).
+    fun encodeMouseButton(button: Int, action: Int, x: Int, y: Int): ByteArray {
+        val out = ArrayList<Byte>(6)
+        out.add(button.toByte()); out.add(action.toByte())
+        out.add((x ushr 8).toByte()); out.add(x.toByte())
+        out.add((y ushr 8).toByte()); out.add(y.toByte())
+        return out.toByteArray()
+    }
 
     data class Config(val width: Int, val height: Int, val fps: Int, val extradata: ByteArray)
     fun decodeConfig(body: ByteArray): Config? {

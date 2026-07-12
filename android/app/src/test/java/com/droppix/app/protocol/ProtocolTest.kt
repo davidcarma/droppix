@@ -140,4 +140,17 @@ class ProtocolTest {
         assertEquals(0, b[22].toInt() and 0xFF); assertEquals(1, b[23].toInt() and 0xFF)  // name-len @22
         assertEquals('n'.code, b[24].toInt() and 0xFF)
     }
+
+    @Test fun scrollLayout() {
+        val b = Protocol.encodeScroll(-3, 5, 1000, 2000)
+        fun i16(o: Int) = ((b[o].toInt() shl 8) or (b[o+1].toInt() and 0xFF)).toShort().toInt()
+        fun u16(o: Int) = ((b[o].toInt() and 0xFF) shl 8) or (b[o+1].toInt() and 0xFF)
+        assertEquals(-3, i16(0)); assertEquals(5, i16(2)); assertEquals(1000, u16(4)); assertEquals(2000, u16(6))
+    }
+    @Test fun mouseButtonLayout() {
+        val b = Protocol.encodeMouseButton(2, 1, 1234, 5678)
+        assertEquals(2, b[0].toInt() and 0xFF); assertEquals(1, b[1].toInt() and 0xFF)
+        fun u16(o: Int) = ((b[o].toInt() and 0xFF) shl 8) or (b[o+1].toInt() and 0xFF)
+        assertEquals(1234, u16(2)); assertEquals(5678, u16(4))
+    }
 }
