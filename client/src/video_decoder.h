@@ -18,6 +18,9 @@ namespace droppix {
 // submit() attaches to every produced QVideoFrame, applying the horizontal-flip setting.
 QVideoFrameFormat make_frame_format(int w, int h, bool mirrored);
 
+// Pure helper to adjust luma (Y channel) brightness and contrast.
+int adjust_luma(int y, int brightness, int contrast);
+
 // FFmpeg-based H.264 decoder: feeds Annex-B access units (one VIDEO message body = one
 // access unit, SPS/PPS in-band ahead of every IDR — same assumption as the Android
 // MediaCodec decoder, see VideoDecoder.kt) and emits QVideoFrame (YUV420P, no extra RGB

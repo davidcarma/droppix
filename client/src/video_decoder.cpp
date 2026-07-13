@@ -15,6 +15,11 @@ QVideoFrameFormat make_frame_format(int w, int h, bool mirrored) {
   return fmt;
 }
 
+int adjust_luma(int y, int brightness, int contrast) {
+  int v = (y - 128) * contrast / 100 + 128 + brightness * 255 / 200;
+  return v < 0 ? 0 : (v > 255 ? 255 : v);
+}
+
 VideoDecoder::VideoDecoder() {
   frame_ = av_frame_alloc();
   packet_ = av_packet_alloc();
