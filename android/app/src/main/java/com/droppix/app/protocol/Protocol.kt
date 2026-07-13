@@ -2,7 +2,7 @@ package com.droppix.app.protocol
 
 enum class MsgType(val code: Int) {
     HELLO(1), CONFIG(2), VIDEO(3), PING(4), PONG(5), BYE(6), INPUT(7), ORIENTATION(8),
-    AUDIO(9), OVERLAY(10), TOUCH(11), SCROLL(12), MOUSE_BUTTON(13);
+    AUDIO(9), OVERLAY(10), TOUCH(11), SCROLL(12), MOUSE_BUTTON(13), KEY(14);
     companion object {
         fun fromCode(c: Int): MsgType? = entries.firstOrNull { it.code == c }
     }
@@ -98,6 +98,10 @@ object Protocol {
         out.add((y ushr 8).toByte()); out.add(y.toByte())
         return out.toByteArray()
     }
+
+    // KEY body: u16 keycode (big-endian), u8 action (0=up,1=down,2=repeat).
+    fun encodeKey(keycode: Int, action: Int): ByteArray =
+        byteArrayOf((keycode ushr 8).toByte(), keycode.toByte(), action.toByte())
 
     data class Config(val width: Int, val height: Int, val fps: Int, val extradata: ByteArray)
     fun decodeConfig(body: ByteArray): Config? {

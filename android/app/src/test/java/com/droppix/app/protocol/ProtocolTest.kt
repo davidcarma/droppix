@@ -153,4 +153,10 @@ class ProtocolTest {
         fun u16(o: Int) = ((b[o].toInt() and 0xFF) shl 8) or (b[o+1].toInt() and 0xFF)
         assertEquals(1234, u16(2)); assertEquals(5678, u16(4))
     }
+
+    @Test fun encodeKeyMatchesWire() {
+        val b = Protocol.encodeKey(300, 2)     // 300 = u16 (0x012C), action 2
+        assertEquals(3, b.size)
+        assertEquals(0x01.toByte(), b[0]); assertEquals(0x2C.toByte(), b[1]); assertEquals(0x02.toByte(), b[2])
+    }
 }
