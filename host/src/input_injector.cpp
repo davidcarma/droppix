@@ -57,6 +57,22 @@ bool InputInjector::open(const std::string& name) {
     std::fprintf(stderr, "uinput device create failed; input disabled\n");
     ::close(fd_); fd_ = -1; return false;
   }
+
+  // Keyboard device (non-fatal on failure: touch stays primary, keyboard is optional).
+  kb_fd_ = ::open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+  if (kb_fd_ >= 0) {
+    ioctl(kb_fd_, UI_SET_EVBIT, EV_KEY);
+    for (int code = 1; code < 256; ++code) ioctl(kb_fd_, UI_SET_KEYBIT, code);
+    uinput_setup kus{};
+    kus.id.bustype = BUS_USB; kus.id.vendor = 0x1209; kus.id.product = 0xd703;
+    std::strncpy(kus.name, "droppix-keyboard", sizeof(kus.name) - 1);
+    if (ioctl(kb_fd_, UI_DEV_SETUP, &kus) < 0 || ioctl(kb_fd_, UI_DEV_CREATE) < 0) {
+      std::fprintf(stderr, "keyboard: uinput device create failed; disabled\n");
+      ::close(kb_fd_); kb_fd_ = -1;
+    }
+  } else {
+    std::fprintf(stderr, "keyboard: uinput open failed; disabled\n");
+  }
   return true;
 }
 
@@ -166,6 +182,12 @@ void InputInjector::mouse_button(uint8_t button, bool down, uint16_t x_norm, uin
   emit(rc_fd_, EV_SYN, SYN_REPORT, 0);
 }
 
+void InputInjector::key(uint16_t keycode, uint8_t action) {
+  if (kb_fd_ < 0) return;
+  emit(kb_fd_, EV_KEY, keycode, action);
+  emit(kb_fd_, EV_SYN, SYN_REPORT, 0);
+}
+
 InputInjector::~InputInjector() {
   if (fd_ >= 0) {
     // Lift any fingers still down BEFORE destroying the device: Xorg segfaults if a
@@ -188,5 +210,6 @@ InputInjector::~InputInjector() {
     ioctl(fd_, UI_DEV_DESTROY); ::close(fd_);
   }
   if (rc_fd_ >= 0) { ioctl(rc_fd_, UI_DEV_DESTROY); ::close(rc_fd_); }
+  if (kb_fd_ >= 0) { ioctl(kb_fd_, UI_DEV_DESTROY); ::close(kb_fd_); }
 }
 }  // namespace droppix

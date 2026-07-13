@@ -25,6 +25,10 @@ class InputInjector {
   // right-click. x_norm/y_norm are 0..65535 on the droppix output, same as right_click.
   void scroll(int dx, int dy, uint16_t x_norm, uint16_t y_norm);
   void mouse_button(uint8_t button, bool down, uint16_t x_norm, uint16_t y_norm);
+  // Emits a single key event (EV_KEY) on the keyboard uinput device. action follows the
+  // Linux input value convention: 0=up, 1=down, 2=repeat. No-op if the keyboard device
+  // failed to create (kb_fd_ < 0) — keyboard input is optional, touch stays primary.
+  void key(uint16_t keycode, uint8_t action);
 
  private:
   void right_click(uint16_t x_norm, uint16_t y_norm);
@@ -33,6 +37,7 @@ class InputInjector {
   int scale_y(uint16_t y_norm) const;
   int fd_ = -1;        // multi-touch touchscreen
   int rc_fd_ = -1;     // right-click absolute pointer
+  int kb_fd_ = -1;     // keyboard
   MtSlots slots_;
   bool anyDown_ = false;   // last BTN_TOUCH state
   TwoFingerTap tap_;
