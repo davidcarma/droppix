@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Client-side brightness + contrast adjustment of the streamed image, applied live (no reconnect) — Android via GL shader uniforms, Linux via a luma-plane transform.
+**Goal:** Client-side brightness + contrast adjustment of the streamed image — Android via GL shader uniforms, Linux via a luma-plane transform. Applied live with no reconnect on the **Linux client**; on **Android**, opening/returning from Settings still stops/restarts streaming as it does for every other setting, so a change is re-applied on the fresh stream after that reconnect (not seamless, but not broken).
 
-**Architecture:** Android adds `uBrightness`/`uContrast` uniforms to the existing GL fragment shader (the render stage left a hook). Linux applies a pure `adjust_luma()` per-pixel on the decoded Y plane. Both read `@Volatile`/plain-int fields per frame, so a slider change is pushed straight to the renderer/decoder without a reconnect. Two sliders per client. **Client-only — no host/protocol change.**
+**Architecture:** Android adds `uBrightness`/`uContrast` uniforms to the existing GL fragment shader (the render stage left a hook). Linux applies a pure `adjust_luma()` per-pixel on the decoded Y plane. Both read `@Volatile`/plain-int (Linux: atomic) fields per frame, so a slider change is pushed straight to the renderer/decoder as soon as it's set. On Linux this is visible on the existing stream immediately (no reconnect). On Android the push happens on every resume, but resuming from Settings already triggers `stopStreaming()`/`startStreaming()` (a reconnect) independent of this feature, so the visible effect is a reconnect-plus-blink, same as every other Android setting. Two sliders per client. **Client-only — no host/protocol change.**
 
 **Tech Stack:** Kotlin/Android (GLES2), Qt6 C++ (Linux client), Gradle + CMake.
 
@@ -13,7 +13,7 @@
 - **Client-only** — no `host/` or protocol change. Do not touch HELLO/protocol/version.
 - **Value mapping (must match across clients):** `uBrightness = brightness/200f` (brightness −100..100 → ≈ ±0.5); `uContrast = contrast/100f` (contrast 0..200 → 0..2, 100 = neutral 1.0). Linux luma mirrors this on 0..255: `adjust_luma(y,b,c) = clamp((y-128)*c/100 + 128 + b*255/200, 0, 255)`.
 - **Defaults are neutral:** brightness `0`, contrast `100`. At neutral the image must be byte-identical to no-adjustment (Linux keeps the plain `memcpy` fast path; the shader formula is identity at 0/100).
-- **Live-apply:** brightness/contrast are pushed to the renderer/decoder directly and are NOT added to any reconnect-triggering condition.
+- **Live-apply:** brightness/contrast are pushed to the renderer/decoder directly and are NOT added to any *additional* reconnect-triggering condition. On Linux this means true live, no-reconnect apply. On Android, Settings already stops/restarts streaming on its own (same as every other setting), so the practical effect is that the change is re-applied on the fresh stream after that existing reconnect, not a seamless live apply.
 - **Build/test envs** (repo on CIFS no-exec mount):
   - Android: `distrobox enter droppix-android -- bash -lc 'cd "/var/mnt/nas/Projects/Spacedesk for linux/android" && ANDROID_HOME=$HOME/android-sdk sh gradlew <task>'` — `sh gradlew` (not `./gradlew`), set `ANDROID_HOME`.
   - Linux client: `distrobox enter droppix-dev -- bash -lc 'cmake -S client -B ~/droppix-client-build -DDROPPIX_CLIENT_BUILD_TESTS=ON && cmake --build ~/droppix-client-build -j && QT_QPA_PLATFORM=offscreen ctest --test-dir ~/droppix-client-build <-R filter> --output-on-failure'`
@@ -130,13 +130,13 @@ Extend the Save `store.save(AppSettings(...))` call with the two new trailing ar
 
 - [ ] **Step 3: `StreamActivity` live-apply.**
   - In `startStreaming()`, after loading `settings` and setting `surface.flipHorizontal`, add `surface.brightness = settings.brightnessValue; surface.contrast = settings.contrast` (use the actual field names: `settings.brightness`, `settings.contrast`).
-  - In `onResume()` (after `super.onResume()` and the existing surface-listener re-attach): reload and push directly, so a brightness/contrast-only change applies WITHOUT a reconnect —
+  - In `onResume()` (after `super.onResume()` and the existing surface-listener re-attach): reload and push directly —
     ```kotlin
     val s = com.droppix.app.settings.SettingsStore(this).load()
     surface.brightness = s.brightness
     surface.contrast = s.contrast
     ```
-    (This runs every resume; it's a cheap field set and doesn't trigger streaming restart. Do NOT add brightness/contrast to any reconnect condition.)
+    (This runs every resume; it's a cheap field set and doesn't itself trigger a streaming restart. Do NOT add brightness/contrast to any *additional* reconnect condition — but note that opening `SettingsActivity` already drives `onPause()` -> `stopStreaming()`, and returning already drives `onResume()` -> `startStreaming()`, which reconnects (new HELLO, brief blink) regardless of this push. So in practice a brightness/contrast change made in Settings is re-applied on the fresh stream after that reconnect, same as every other Android setting — it is NOT seamless/without-reconnect. Only the Linux client applies brightness/contrast live with no reconnect.)
 
 - [ ] **Step 4: Build**
 
@@ -300,4 +300,4 @@ Expected: client suite green (incl. `AdjustLuma.*` + ClientSettings round-trips)
 - **Spec coverage:** Android settings (T1) + shader (T2) + sliders/live-apply (T3); Linux helper (T4) + decoder apply (T5) + settings/sliders/live-apply (T6); testing per-task + T7. `ClientSettings` fields folded into T6 Step 1 (they're only consumed by the Linux dialog/decoder).
 - **Value mapping consistent:** `uBrightness=b/200`, `uContrast=c/100` (Android) mirror `adjust_luma`'s `(y-128)*c/100 + 128 + b*255/200` (Linux). Neutral 0/100 is identity on both (shader: `(c-0.5)*1+0.5+0`; Linux: keeps `memcpy`).
 - **Type consistency:** `brightness`/`contrast` Int everywhere; `GlDisplayView.brightness/contrast`, `VideoDecoder::setBrightness/setContrast(int)`, `adjust_luma(int,int,int)` consistent.
-- **Live-apply:** not added to any reconnect condition (Android onResume pushes fields; Linux onSettingsAction pushes to the decoder). Neutral keeps the fast path (no per-pixel cost when off).
+- **Live-apply:** not added to any *additional* reconnect condition (Android onResume pushes fields; Linux onSettingsAction pushes to the decoder). Linux applies seamlessly with no reconnect. Android's Settings screen already stops/restarts streaming on its own (same as every other setting), so Android changes are re-applied on the fresh stream after that existing reconnect, not seamlessly live. Neutral keeps the fast path (no per-pixel cost when off).
