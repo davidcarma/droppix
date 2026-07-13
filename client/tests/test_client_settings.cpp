@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QSettings>
 #include "client_settings.h"
+#include "keycode_util.h"
 using namespace droppix;
 
 TEST(ClientSettings, RotationToCode) {
@@ -40,4 +41,16 @@ TEST(ClientSettings, BrightnessContrastDefaultAndRoundTrip) {
   s.brightness = -40; s.contrast = 150; droppix::ClientSettingsStore::save(s);
   const droppix::ClientSettings r = droppix::ClientSettingsStore::load();
   EXPECT_EQ(r.brightness, -40); EXPECT_EQ(r.contrast, 150);
+}
+TEST(ScancodeToEvdev, X11SubtractsEight) {
+  EXPECT_EQ(droppix::scancode_to_evdev(38, false), 30);  // X11 code 38 -> KEY_A(30)
+  EXPECT_EQ(droppix::scancode_to_evdev(9,  false), 1);   // X11 code 9  -> KEY_ESC(1)
+}
+TEST(ScancodeToEvdev, WaylandNoOffset) {
+  EXPECT_EQ(droppix::scancode_to_evdev(30, true), 30);   // wayland: already evdev
+  EXPECT_EQ(droppix::scancode_to_evdev(1,  true), 1);
+}
+TEST(ScancodeToEvdev, RejectsTooLow) {
+  EXPECT_EQ(droppix::scancode_to_evdev(8, false), 0);
+  EXPECT_EQ(droppix::scancode_to_evdev(0, true), 0);
 }

@@ -1,10 +1,12 @@
 #include "video_widget.h"
+#include <QGuiApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QTouchEvent>
 #include <QWheelEvent>
 #include <QDateTime>
 #include <algorithm>
+#include "keycode_util.h"
 
 namespace droppix {
 
@@ -105,21 +107,25 @@ void VideoWidget::wheelEvent(QWheelEvent* e) {
   e->accept();
 }
 
-// X11 scancode = evdev keycode + 8 (the kernel evdev codes start at 1, but X reserves the
-// first 8 for pseudo-keys); nativeScanCode() below 9 means no usable evdev mapping exists
-// (e.g. a synthetic/virtual key event) so it's ignored rather than forwarded as garbage.
+// X11 (xcb) scancode = evdev keycode + 8 (the kernel evdev codes start at 1, but X reserves
+// the first 8 for pseudo-keys); Wayland scancodes are already raw evdev codes (no offset).
+// scancode_to_evdev() branches on the active QPA platform so both platforms send correct
+// codes; it returns 0 when there's no usable evdev mapping (e.g. a synthetic/virtual key
+// event), which is ignored rather than forwarded as garbage.
 void VideoWidget::keyPressEvent(QKeyEvent* e) {
-  int sc = static_cast<int>(e->nativeScanCode());
-  if (sc < 9) { e->ignore(); return; }
-  if (keyCb_) keyCb_(static_cast<uint16_t>(sc - 8), e->isAutoRepeat() ? 2 : 1);
+  bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
+  int evdev = droppix::scancode_to_evdev(static_cast<int>(e->nativeScanCode()), wayland);
+  if (evdev == 0) { e->ignore(); return; }
+  if (keyCb_) keyCb_(static_cast<uint16_t>(evdev), e->isAutoRepeat() ? 2 : 1);
   e->accept();
 }
 
 void VideoWidget::keyReleaseEvent(QKeyEvent* e) {
   if (e->isAutoRepeat()) { e->accept(); return; }   // autorepeat release is an artifact, not a real up
-  int sc = static_cast<int>(e->nativeScanCode());
-  if (sc < 9) { e->ignore(); return; }
-  if (keyCb_) keyCb_(static_cast<uint16_t>(sc - 8), 0);
+  bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
+  int evdev = droppix::scancode_to_evdev(static_cast<int>(e->nativeScanCode()), wayland);
+  if (evdev == 0) { e->ignore(); return; }
+  if (keyCb_) keyCb_(static_cast<uint16_t>(evdev), 0);
   e->accept();
 }
 
