@@ -59,6 +59,12 @@ class TransportClient {
         submitSend(o, msg)
     }
 
+    fun sendKey(keycode: Int, action: Int) {
+        val o = out ?: return
+        val msg = Protocol.encodeMessage(MsgType.KEY, Protocol.encodeKey(keycode, action))
+        submitSend(o, msg)
+    }
+
     // Encode on the caller; write on the background sender so UI-thread callers don't
     // hit NetworkOnMainThreadException. sendLock still serializes against net-thread writes.
     private fun submitSend(o: java.io.OutputStream, msg: ByteArray) {

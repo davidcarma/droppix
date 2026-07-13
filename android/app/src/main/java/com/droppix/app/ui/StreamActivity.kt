@@ -128,6 +128,10 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
                 client?.sendMouseButton(button, action, x, y)
             }
         })
+        surfaceView.setKeyListener(object : GlDisplayView.KeyListener {
+            override fun onKey(keycode: Int, action: Int) { client?.sendKey(keycode, action) }
+        })
+        surfaceView.requestFocus()
         // Live-apply: brightness/contrast are display-only shader params, so a settings change
         // that touches only these is pushed straight onto the surface here (every resume) rather
         // than routed through the reconnect path in startStreaming() — cheap field sets, no
@@ -145,6 +149,7 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
         orientationListener?.disable()
         surfaceView.setTouchListener(null)
         surfaceView.setMouseListener(null)
+        surfaceView.setKeyListener(null)
         surfaceView.setSurfaceListener(null)
         stopStreaming()
     }

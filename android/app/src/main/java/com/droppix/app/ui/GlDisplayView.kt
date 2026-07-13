@@ -8,6 +8,7 @@ import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.AttributeSet
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -40,9 +41,14 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
         fun onMouseButton(button: Int, action: Int, x: Int, y: Int)
     }
 
+    // Physical/Bluetooth hardware keyboard. keycode is an evdev code (KeyMap.toEvdev);
+    // action follows the wire protocol's KEY body (0=up, 1=down, 2=repeat).
+    interface KeyListener { fun onKey(keycode: Int, action: Int) }
+
     private var surfaceListener: SurfaceListener? = null
     private var touchListener: TouchListener? = null
     @Volatile private var mouseListener: MouseListener? = null
+    @Volatile private var keyListener: KeyListener? = null
     private var lastMoveSentMs = 0L
     private val moveMinIntervalMs = 12L   // coalesce MOVEs to ~80 Hz max
 
@@ -72,6 +78,7 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
 
     fun setTouchListener(l: TouchListener?) { touchListener = l }
     fun setMouseListener(l: MouseListener?) { mouseListener = l }
+    fun setKeyListener(l: KeyListener?) { keyListener = l }
 
     // Same 0..65535 normalization the touch-contact loop below applies (view-local pixels ->
     // fraction of width/height, clamped, scaled). Reused by the mouse scroll/button branches so
@@ -153,6 +160,22 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
         return true
     }
 
+    // Physical/Bluetooth hardware keyboard. Unmapped keys (KeyMap.toEvdev == 0) fall through to
+    // super so Android system keys (Back/Home/volume, etc.) keep working normally.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val e = KeyMap.toEvdev(keyCode)
+        if (e == 0) return super.onKeyDown(keyCode, event)
+        keyListener?.onKey(e, if (event.repeatCount > 0) 2 else 1)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        val e = KeyMap.toEvdev(keyCode)
+        if (e == 0) return super.onKeyUp(keyCode, event)
+        keyListener?.onKey(e, 0)
+        return true
+    }
+
     // Register (or clear with null) the lifecycle listener. If the decode surface is already
     // valid (e.g. re-registering after a settings round-trip), onSurfaceReady still fires —
     // same contract as the prior SurfaceView-based view's setSurfaceListener, adapted to lastSurface (see above).
@@ -185,6 +208,7 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     private val renderer = GlRenderer()
 
     init {
+        isFocusableInTouchMode = true
         setEGLContextClientVersion(2)
         setRenderer(renderer)
         renderMode = RENDERMODE_WHEN_DIRTY
