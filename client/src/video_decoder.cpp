@@ -77,8 +77,17 @@ std::vector<QVideoFrame> VideoDecoder::submit(const std::vector<unsigned char>& 
         uchar* dst = vf.bits(plane);
         const uint8_t* src = frame_->data[plane];
         const int copyBytes = std::min(srcStride, dstStride);
-        for (int row = 0; row < planeH; ++row) {
-          std::memcpy(dst + row * dstStride, src + row * srcStride, copyBytes);
+        if (plane == 0 && (brightness_ != 0 || contrast_ != 100)) {
+          for (int row = 0; row < planeH; ++row) {
+            const uint8_t* s = src + row * srcStride;
+            uint8_t* d = dst + row * dstStride;
+            for (int col = 0; col < copyBytes; ++col)
+              d[col] = static_cast<uint8_t>(adjust_luma(s[col], brightness_, contrast_));
+          }
+        } else {
+          for (int row = 0; row < planeH; ++row) {
+            std::memcpy(dst + row * dstStride, src + row * srcStride, copyBytes);
+          }
         }
       }
       vf.unmap();

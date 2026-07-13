@@ -46,11 +46,18 @@ class VideoDecoder {
   // submit() call.
   void setFlipHorizontal(bool f) { flip_ = f; }
 
+  // Adjusts luma (Y plane) brightness/contrast applied during the next submit() calls.
+  // Neutral values (brightness 0, contrast 100) keep the plain memcpy fast path.
+  void setBrightness(int b) { brightness_ = b; }
+  void setContrast(int c) { contrast_ = c; }
+
  private:
   AVCodecContext* ctx_ = nullptr;
   AVFrame* frame_ = nullptr;
   AVPacket* packet_ = nullptr;
   bool flip_ = false;
+  int brightness_ = 0;
+  int contrast_ = 100;
 };
 
 }  // namespace droppix
