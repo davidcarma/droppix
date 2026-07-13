@@ -8,7 +8,7 @@ import android.content.Context
 data class AppSettings(
     val width: Int = 0, val height: Int = 0, val fps: Int = 60, val audio: Boolean = false,
     val bitrateKbps: Int = 8000, val rotationLocked: Boolean = false, val showOverlay: Boolean = false,
-    val flipHorizontal: Boolean = false)
+    val flipHorizontal: Boolean = false, val brightness: Int = 0, val contrast: Int = 100)
 
 object Resolutions {
     // Presets offered in the UI, in addition to "Native". Landscape-oriented (width >= height).
@@ -29,9 +29,11 @@ class SettingsStore(context: Context) {
         width = prefs.getInt("res_w", 0), height = prefs.getInt("res_h", 0),
         fps = prefs.getInt("fps", 60), audio = prefs.getBoolean("audio", false),
         bitrateKbps = prefs.getInt("bitrate", 8000), rotationLocked = prefs.getBoolean("rot_lock", false),
-        showOverlay = prefs.getBoolean("overlay", false), flipHorizontal = prefs.getBoolean("flip_h", false))
+        showOverlay = prefs.getBoolean("overlay", false), flipHorizontal = prefs.getBoolean("flip_h", false),
+        brightness = prefs.getInt("brightness", 0), contrast = prefs.getInt("contrast", 100))
     fun save(s: AppSettings) = prefs.edit()
         .putInt("res_w", s.width).putInt("res_h", s.height)
         .putInt("fps", s.fps).putBoolean("audio", s.audio)
-        .putInt("bitrate", s.bitrateKbps).putBoolean("rot_lock", s.rotationLocked).putBoolean("overlay", s.showOverlay).putBoolean("flip_h", s.flipHorizontal).apply()
+        .putInt("bitrate", s.bitrateKbps).putBoolean("rot_lock", s.rotationLocked).putBoolean("overlay", s.showOverlay).putBoolean("flip_h", s.flipHorizontal)
+        .putInt("brightness", s.brightness).putInt("contrast", s.contrast).apply()
 }
