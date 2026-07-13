@@ -47,8 +47,8 @@ No change to `Hello`/`Touch`/`Scroll`/`MouseButton`/`Orientation`. `Touch = 11`,
 
 ## Linux client (`gui/video_widget.{h,cpp}`, `transport_client`, `main_window.cpp`)
 
-- **`VideoWidget`**: set `Qt::StrongFocus`; override `keyPressEvent`/`keyReleaseEvent`. Compute `evdev = event->nativeScanCode() - 8` (X11/libinput scancodes are evdev + 8) and send `{evdev, action}` where press with `event->isAutoRepeat()` → `2` else `1`, release → `0`. Guard against a non-positive/absurd evdev (skip if `nativeScanCode() < 9`). Accept the event.
-  - **Assumption:** this uses X11 scancodes (evdev + 8), matching the KDE/X11 host target. Under a Wayland Qt platform `nativeScanCode()` already returns the raw evdev code (no +8), so the offset would be wrong there — deferred; the client is expected to run on X11 for now, and this is called out as a known limitation rather than handled.
+- **`VideoWidget`**: set `Qt::StrongFocus`; override `keyPressEvent`/`keyReleaseEvent`. Compute the evdev code via the pure helper `droppix::scancode_to_evdev(nativeScanCode(), wayland)` (`client/src/keycode_util.h`) and send `{evdev, action}` where press with `event->isAutoRepeat()` → `2` else `1`, release → `0`. `scancode_to_evdev` returns `0` for a non-positive/absurd evdev, which is skipped. Accept the event.
+  - **Platform-aware offset:** `scancode_to_evdev` branches on `wayland = QGuiApplication::platformName() == "wayland"` — X11 scancodes are evdev + 8 (subtracted), Wayland scancodes are already raw evdev (no offset). Both X11 and Wayland Qt clients now send correct evdev codes; unit-tested in `tests/test_client_settings.cpp` (`ScancodeToEvdev.*`).
   - A new `KeyCallback` (or `setKeyCallback`) on `VideoWidget`, forwarded by `main_window` to the transport, mirroring `setScrollCallback`/`setMouseButtonCallback`.
 - **`transport_client.sendKey(uint16_t keycode, uint8_t action)`** mirroring `sendScroll`/`sendMouseButton` (`sendLock_` + `encode_message` + `send_all`).
 - **`main_window`** wires the `VideoWidget` key callback to `client_->sendKey(...)`, like the scroll/mouse-button callbacks (guarded by `if (client_)`).
