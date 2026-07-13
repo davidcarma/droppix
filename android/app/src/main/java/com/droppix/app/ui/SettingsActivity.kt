@@ -2,6 +2,7 @@ package com.droppix.app.ui
 
 import android.app.Activity
 import android.os.Bundle
+import android.view.View
 import android.widget.*
 import com.droppix.app.R
 import com.droppix.app.settings.*
@@ -41,20 +42,14 @@ class SettingsActivity : Activity() {
         val brightnessVal = findViewById<TextView>(R.id.brightness_val)
         brightnessSeek.progress = cur.brightness + 100                 // stored -100..100 -> 0..200
         brightnessVal.text = cur.brightness.toString()
-        brightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { brightnessVal.text = (p - 100).toString() }
-            override fun onStartTrackingTouch(sb: SeekBar) {} ; override fun onStopTrackingTouch(sb: SeekBar) {}
-        })
         val contrastSeek = findViewById<SeekBar>(R.id.contrast_seek)
         val contrastVal = findViewById<TextView>(R.id.contrast_val)
         contrastSeek.progress = cur.contrast                            // stored 0..200
         contrastVal.text = cur.contrast.toString()
-        contrastSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { contrastVal.text = p.toString() }
-            override fun onStartTrackingTouch(sb: SeekBar) {} ; override fun onStopTrackingTouch(sb: SeekBar) {}
-        })
 
-        findViewById<Button>(R.id.save_btn).setOnClickListener {
+        // Auto-save: persist the whole settings snapshot on every control change, so a change
+        // survives leaving the screen via Back (previously only the Save button wrote settings).
+        fun persist() {
             val res = if (resSpinner.selectedItemPosition == 0) 0 to 0
                       else Resolutions.PRESETS[resSpinner.selectedItemPosition - 1]
             store.save(AppSettings(
@@ -67,8 +62,36 @@ class SettingsActivity : Activity() {
                 flipSwitch.isChecked,
                 brightnessSeek.progress - 100,
                 contrastSeek.progress))
-            finish()
         }
+
+        // `ready` gates out the spinners' initial onItemSelected callback (delivered once after
+        // onCreate for the programmatic setSelection above) so setup doesn't count as a change.
+        var ready = false
+        val onSel = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, v: View?, pos: Int, id: Long) { if (ready) persist() }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        resSpinner.onItemSelectedListener = onSel
+        fpsSpinner.onItemSelectedListener = onSel
+        qualitySpinner.onItemSelectedListener = onSel
+        rotationSpinner.onItemSelectedListener = onSel
+        audioSwitch.setOnCheckedChangeListener { _, _ -> if (ready) persist() }
+        overlaySwitch.setOnCheckedChangeListener { _, _ -> if (ready) persist() }
+        flipSwitch.setOnCheckedChangeListener { _, _ -> if (ready) persist() }
+        brightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { brightnessVal.text = (p - 100).toString() }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) { if (ready) persist() }
+        })
+        contrastSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { contrastVal.text = p.toString() }
+            override fun onStartTrackingTouch(sb: SeekBar) {}
+            override fun onStopTrackingTouch(sb: SeekBar) { if (ready) persist() }
+        })
+
+        // Kept as an explicit "done"; auto-save already persisted every change.
+        findViewById<Button>(R.id.save_btn).setOnClickListener { persist(); finish() }
+        ready = true
     }
 
     // Spinner adapter with light text in both the collapsed view and the dropdown popup, so
