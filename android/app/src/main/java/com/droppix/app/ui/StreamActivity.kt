@@ -128,6 +128,13 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
                 client?.sendMouseButton(button, action, x, y)
             }
         })
+        // Live-apply: brightness/contrast are display-only shader params, so a settings change
+        // that touches only these is pushed straight onto the surface here (every resume) rather
+        // than routed through the reconnect path in startStreaming() — cheap field sets, no
+        // restream needed.
+        val s = com.droppix.app.settings.SettingsStore(this).load()
+        surfaceView.brightness = s.brightness
+        surfaceView.contrast = s.contrast
         uiHandler.post(overlayTick)
         orientationListener?.takeIf { it.canDetectOrientation() }?.enable()
     }
@@ -162,6 +169,8 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
         // new resolution/fps/audio. (onPause already stopped the previous session.)
         val settings = com.droppix.app.settings.SettingsStore(this).load()
         surfaceView.flipHorizontal = settings.flipHorizontal
+        surfaceView.brightness = settings.brightness
+        surfaceView.contrast = settings.contrast
         val real = android.util.DisplayMetrics()
         @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(real)
         val (sendW, sendH) = com.droppix.app.settings.Resolutions.resolve(settings, real.widthPixels, real.heightPixels)

@@ -37,6 +37,23 @@ class SettingsActivity : Activity() {
         val flipSwitch = findViewById<Switch>(R.id.flip_switch)
         flipSwitch.isChecked = cur.flipHorizontal
 
+        val brightnessSeek = findViewById<SeekBar>(R.id.brightness_seek)
+        val brightnessVal = findViewById<TextView>(R.id.brightness_val)
+        brightnessSeek.progress = cur.brightness + 100                 // stored -100..100 -> 0..200
+        brightnessVal.text = cur.brightness.toString()
+        brightnessSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { brightnessVal.text = (p - 100).toString() }
+            override fun onStartTrackingTouch(sb: SeekBar) {} ; override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+        val contrastSeek = findViewById<SeekBar>(R.id.contrast_seek)
+        val contrastVal = findViewById<TextView>(R.id.contrast_val)
+        contrastSeek.progress = cur.contrast                            // stored 0..200
+        contrastVal.text = cur.contrast.toString()
+        contrastSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) { contrastVal.text = p.toString() }
+            override fun onStartTrackingTouch(sb: SeekBar) {} ; override fun onStopTrackingTouch(sb: SeekBar) {}
+        })
+
         findViewById<Button>(R.id.save_btn).setOnClickListener {
             val res = if (resSpinner.selectedItemPosition == 0) 0 to 0
                       else Resolutions.PRESETS[resSpinner.selectedItemPosition - 1]
@@ -47,7 +64,9 @@ class SettingsActivity : Activity() {
                 qualityKbps[qualitySpinner.selectedItemPosition],
                 rotationSpinner.selectedItemPosition == 1,
                 overlaySwitch.isChecked,
-                flipSwitch.isChecked))
+                flipSwitch.isChecked,
+                brightnessSeek.progress - 100,
+                contrastSeek.progress))
             finish()
         }
     }

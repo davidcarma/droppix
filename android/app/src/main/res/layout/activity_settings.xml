@@ -141,6 +141,52 @@
 
     </LinearLayout>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Brightness"
+        android:textColor="#9aa5b1"
+        android:textSize="14sp"
+        android:layout_marginBottom="4dp" />
+
+    <SeekBar
+        android:id="@+id/brightness_seek"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="200"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/brightness_val"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#e5e7eb"
+        android:textSize="14sp"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Contrast"
+        android:textColor="#9aa5b1"
+        android:textSize="14sp"
+        android:layout_marginBottom="4dp" />
+
+    <SeekBar
+        android:id="@+id/contrast_seek"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="200"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/contrast_val"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#e5e7eb"
+        android:textSize="14sp"
+        android:layout_marginBottom="16dp" />
+
     <Button
         android:id="@+id/save_btn"
         android:layout_width="match_parent"
