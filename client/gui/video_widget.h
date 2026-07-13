@@ -38,12 +38,18 @@ class VideoWidget : public QVideoWidget {
                                                  uint16_t x, uint16_t y)>;
   void setMouseButtonCallback(MouseButtonCallback cb) { mouseButtonCb_ = std::move(cb); }
 
+  // keycode: evdev/linux input-event-codes.h scancode; action: 0=up, 1=down, 2=repeat.
+  using KeyCallback = std::function<void(uint16_t keycode, uint8_t action)>;
+  void setKeyCallback(KeyCallback cb) { keyCb_ = std::move(cb); }
+
  protected:
   bool event(QEvent* e) override;         // QTouchEvent path
   void mousePressEvent(QMouseEvent* e) override;
   void mouseMoveEvent(QMouseEvent* e) override;
   void mouseReleaseEvent(QMouseEvent* e) override;
   void wheelEvent(QWheelEvent* e) override;
+  void keyPressEvent(QKeyEvent* e) override;
+  void keyReleaseEvent(QKeyEvent* e) override;
 
  private:
   void emitContacts(const std::vector<TouchContact>& contacts);
@@ -54,6 +60,7 @@ class VideoWidget : public QVideoWidget {
   TouchCallback onTouch_;
   ScrollCallback scrollCb_;
   MouseButtonCallback mouseButtonCb_;
+  KeyCallback keyCb_;
   qint64 lastMoveSentMs_ = 0;
   bool mouseDown_ = false;
   static constexpr qint64 kMoveMinIntervalMs = 12;

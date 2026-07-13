@@ -60,6 +60,7 @@ class TransportClient {
   void sendOrientation(uint8_t code);
   void sendScroll(int dx, int dy, uint16_t x, uint16_t y);
   void sendMouseButton(uint8_t button, uint8_t action, uint16_t x, uint16_t y);
+  void sendKey(uint16_t keycode, uint8_t action);
 
   // Transport-agnostic loop: writes HELLO once, then reads CONFIG/VIDEO/AUDIO/OVERLAY/PING
   // and answers PING while isRunning() holds. Returns when the channel closes or isRunning()

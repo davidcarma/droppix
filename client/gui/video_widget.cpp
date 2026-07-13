@@ -1,4 +1,5 @@
 #include "video_widget.h"
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QTouchEvent>
 #include <QWheelEvent>
@@ -9,6 +10,7 @@ namespace droppix {
 
 VideoWidget::VideoWidget(QWidget* parent) : QVideoWidget(parent) {
   setAttribute(Qt::WA_AcceptTouchEvents, true);
+  setFocusPolicy(Qt::StrongFocus);
 }
 
 void VideoWidget::emitContacts(const std::vector<TouchContact>& contacts) {
@@ -100,6 +102,24 @@ void VideoWidget::wheelEvent(QWheelEvent* e) {
     auto n = normalize(e->position().x(), e->position().y(), 1.0, 0);
     scrollCb_(dx, dy, n.x, n.y);
   }
+  e->accept();
+}
+
+// X11 scancode = evdev keycode + 8 (the kernel evdev codes start at 1, but X reserves the
+// first 8 for pseudo-keys); nativeScanCode() below 9 means no usable evdev mapping exists
+// (e.g. a synthetic/virtual key event) so it's ignored rather than forwarded as garbage.
+void VideoWidget::keyPressEvent(QKeyEvent* e) {
+  int sc = static_cast<int>(e->nativeScanCode());
+  if (sc < 9) { e->ignore(); return; }
+  if (keyCb_) keyCb_(static_cast<uint16_t>(sc - 8), e->isAutoRepeat() ? 2 : 1);
+  e->accept();
+}
+
+void VideoWidget::keyReleaseEvent(QKeyEvent* e) {
+  if (e->isAutoRepeat()) { e->accept(); return; }   // autorepeat release is an artifact, not a real up
+  int sc = static_cast<int>(e->nativeScanCode());
+  if (sc < 9) { e->ignore(); return; }
+  if (keyCb_) keyCb_(static_cast<uint16_t>(sc - 8), 0);
   e->accept();
 }
 

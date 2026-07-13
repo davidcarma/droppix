@@ -67,6 +67,13 @@ void TransportClient::sendMouseButton(uint8_t button, uint8_t action, uint16_t x
   channel_->send_all(msg.data(), msg.size());
 }
 
+void TransportClient::sendKey(uint16_t keycode, uint8_t action) {
+  std::lock_guard<std::mutex> lk(sendLock_);
+  if (!channel_) return;
+  auto msg = encode_message(MsgType::Key, encode_key(keycode, action));
+  channel_->send_all(msg.data(), msg.size());
+}
+
 void TransportClient::runOverChannel(ByteChannel& channel, uint32_t width, uint32_t height,
                                     uint32_t density, uint32_t fps, uint8_t audio_wanted,
                                     uint8_t orientation_code, uint32_t bitrate_kbps,

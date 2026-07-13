@@ -66,6 +66,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   video_->setMouseButtonCallback([this](uint8_t button, uint8_t action, uint16_t x, uint16_t y) {
     if (client_) client_->sendMouseButton(button, action, x, y);
   });
+  video_->setKeyCallback([this](uint16_t kc, uint8_t a) {
+    if (client_) client_->sendKey(kc, a);
+  });
 
   audioPlayer_ = new AudioPlayer(this);
   decoder_ = std::make_unique<VideoDecoder>();
