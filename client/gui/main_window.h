@@ -40,7 +40,9 @@ class MainWindow : public QMainWindow {
   TlsTrust tlsTrust_;
   ClientSettings settings_ = ClientSettingsStore::load();
   std::unique_ptr<TransportClient> client_;
-  std::unique_ptr<VideoDecoder> decoder_;   // touched only by netThread_
+  std::unique_ptr<VideoDecoder> decoder_;   // created once, never reset; deref'd on
+                                             // netThread_ + live brightness/contrast writes
+                                             // from GUI thread (benign int race)
   AudioPlayer* audioPlayer_ = nullptr;      // QObject, GUI-thread owned (parented to this)
   VideoWidget* video_ = nullptr;
   QLabel* statusLabel_ = nullptr;
