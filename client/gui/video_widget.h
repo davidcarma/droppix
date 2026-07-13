@@ -2,6 +2,7 @@
 #include <QVideoWidget>
 #include <functional>
 #include <map>
+#include <set>
 #include <vector>
 #include "protocol.h"   // droppix::TouchContact
 #include "touch_normalize.h"
@@ -50,6 +51,7 @@ class VideoWidget : public QVideoWidget {
   void wheelEvent(QWheelEvent* e) override;
   void keyPressEvent(QKeyEvent* e) override;
   void keyReleaseEvent(QKeyEvent* e) override;
+  void focusOutEvent(QFocusEvent* e) override;
 
  private:
   void emitContacts(const std::vector<TouchContact>& contacts);
@@ -61,6 +63,7 @@ class VideoWidget : public QVideoWidget {
   ScrollCallback scrollCb_;
   MouseButtonCallback mouseButtonCb_;
   KeyCallback keyCb_;
+  std::set<uint16_t> heldKeys_;
   qint64 lastMoveSentMs_ = 0;
   bool mouseDown_ = false;
   static constexpr qint64 kMoveMinIntervalMs = 12;

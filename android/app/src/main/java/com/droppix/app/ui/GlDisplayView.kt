@@ -52,6 +52,10 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     private var lastMoveSentMs = 0L
     private val moveMinIntervalMs = 12L   // coalesce MOVEs to ~80 Hz max
 
+    // Evdev codes currently held down, so a focus loss (backgrounding, a dialog, the soft
+    // keyboard) can flush them as releases rather than leaving them stuck DOWN on the host.
+    private val heldKeys = mutableSetOf<Int>()
+
     // Tracks the most recent SurfaceTexture-backed decode Surface. The prior SurfaceView-based
     // view tracked readiness via holder.surface (the SurfaceView's own on-screen surface, which doubled as
     // the decode target); here the decode target is a separate SurfaceTexture-backed Surface
@@ -165,6 +169,7 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val e = KeyMap.toEvdev(keyCode)
         if (e == 0) return super.onKeyDown(keyCode, event)
+        heldKeys.add(e)
         keyListener?.onKey(e, if (event.repeatCount > 0) 2 else 1)
         return true
     }
@@ -172,8 +177,22 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         val e = KeyMap.toEvdev(keyCode)
         if (e == 0) return super.onKeyUp(keyCode, event)
+        heldKeys.remove(e)
         keyListener?.onKey(e, 0)
         return true
+    }
+
+    // A modifier held while the window loses focus (backgrounding, a dialog, the soft
+    // keyboard, etc.) would otherwise never see its up event, leaving it stuck DOWN on the
+    // host. The listener is still set at this point (StreamActivity.onPause clears it
+    // separately, after this fires), so the flush reaches the transport.
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) {
+            val l = keyListener
+            if (l != null) heldKeys.forEach { l.onKey(it, 0) }
+            heldKeys.clear()
+        }
     }
 
     // Register (or clear with null) the lifecycle listener. If the decode surface is already

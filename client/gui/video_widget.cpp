@@ -1,4 +1,5 @@
 #include "video_widget.h"
+#include <QFocusEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -116,6 +117,7 @@ void VideoWidget::keyPressEvent(QKeyEvent* e) {
   bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
   int evdev = droppix::scancode_to_evdev(static_cast<int>(e->nativeScanCode()), wayland);
   if (evdev == 0) { e->ignore(); return; }
+  heldKeys_.insert(static_cast<uint16_t>(evdev));
   if (keyCb_) keyCb_(static_cast<uint16_t>(evdev), e->isAutoRepeat() ? 2 : 1);
   e->accept();
 }
@@ -125,8 +127,18 @@ void VideoWidget::keyReleaseEvent(QKeyEvent* e) {
   bool wayland = QGuiApplication::platformName() == QLatin1String("wayland");
   int evdev = droppix::scancode_to_evdev(static_cast<int>(e->nativeScanCode()), wayland);
   if (evdev == 0) { e->ignore(); return; }
+  heldKeys_.erase(static_cast<uint16_t>(evdev));
   if (keyCb_) keyCb_(static_cast<uint16_t>(evdev), 0);
   e->accept();
+}
+
+// A modifier held while the window/widget loses focus (alt-tab, dialog popup, etc.) would
+// otherwise never see its release event, leaving it stuck DOWN on the host. Flush every
+// currently-held key as an up on focus loss.
+void VideoWidget::focusOutEvent(QFocusEvent* e) {
+  for (uint16_t k : heldKeys_) { if (keyCb_) keyCb_(k, 0); }
+  heldKeys_.clear();
+  QVideoWidget::focusOutEvent(e);
 }
 
 }  // namespace droppix
