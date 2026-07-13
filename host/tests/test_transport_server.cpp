@@ -153,6 +153,24 @@ TEST(TransportServer, ScrollHandlerFires) {
   EXPECT_EQ(gy, 600u);
 }
 
+TEST(TransportServer, KeyHandlerFires) {
+  TransportServer s;
+  auto fake = std::make_unique<FakeChannel>();
+  fake->to_recv = encode_message(MsgType::Key, encode_key(30, 1));  // KEY_A down
+  s.adopt_channel(std::move(fake), "test");
+
+  uint16_t gotKc = 0; uint8_t gotAction = 0; int calls = 0;
+  s.set_key_handler([&](uint16_t kc, uint8_t a) {
+    gotKc = kc; gotAction = a; ++calls;
+  });
+
+  s.poll_control();
+
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(gotKc, 30);
+  EXPECT_EQ(gotAction, 1);
+}
+
 TEST(TransportServer, RelistenClosesOldSocketAndSucceeds) {
   TransportServer s;
   ASSERT_TRUE(s.listen(0));        // ephemeral

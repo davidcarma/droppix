@@ -151,6 +151,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   tx_.set_touch_handler(nullptr);  // drop any handler from a prior session (its injector is gone)
   tx_.set_scroll_handler(nullptr);
   tx_.set_mouse_button_handler(nullptr);
+  tx_.set_key_handler(nullptr);
   if (cfg_.touch && !have_output) {
     // We can't pin the touchscreen to the droppix output on this compositor (e.g. GNOME,
     // before its DesktopBackend exists) — injecting anyway moves the WRONG monitor's cursor.
@@ -167,6 +168,9 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       });
       tx_.set_mouse_button_handler([&injector](uint8_t b, uint8_t a, uint16_t x, uint16_t y) {
         injector.mouse_button(b, a != 0, x, y);
+      });
+      tx_.set_key_handler([&injector](uint16_t kc, uint8_t a) {
+        injector.key(kc, a);
       });
       std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                    droppix.name.c_str(), droppix.geom.w, droppix.geom.h);

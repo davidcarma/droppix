@@ -51,6 +51,9 @@ class TransportServer {
   void set_mouse_button_handler(std::function<void(uint8_t, uint8_t, uint16_t, uint16_t)> h) {
     mouse_button_handler_ = std::move(h);
   }
+  // Called for each KEY message during poll_control with (keycode, action).
+  // Same lifetime invariant as the touch handler.
+  void set_key_handler(std::function<void(uint16_t, uint8_t)> h) { key_handler_ = std::move(h); }
   bool connected() const { return channel_ && channel_->connected(); }
   std::string peer_ip() const { return peer_ip_; }
   void close_all();
@@ -69,6 +72,7 @@ class TransportServer {
   std::function<void(uint8_t)> orientation_handler_;
   std::function<void(int16_t, int16_t, uint16_t, uint16_t)> scroll_handler_;
   std::function<void(uint8_t, uint8_t, uint16_t, uint16_t)> mouse_button_handler_;
+  std::function<void(uint16_t, uint8_t)> key_handler_;
 
   bool tls_ = false;
   std::string cert_, key_;

@@ -161,6 +161,9 @@ void TransportServer::poll_control() {
     } else if (m.type == MsgType::MouseButton && mouse_button_handler_) {
       uint8_t button, action; uint16_t x, y;
       if (decode_mouse_button(m.body, button, action, x, y)) mouse_button_handler_(button, action, x, y);
+    } else if (m.type == MsgType::Key && key_handler_) {
+      uint16_t kc; uint8_t a;
+      if (decode_key(m.body, kc, a)) key_handler_(kc, a);
     }
   }
 }
