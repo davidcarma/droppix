@@ -159,4 +159,13 @@ class ProtocolTest {
         assertEquals(3, b.size)
         assertEquals(0x01.toByte(), b[0]); assertEquals(0x2C.toByte(), b[1]); assertEquals(0x02.toByte(), b[2])
     }
+
+    @Test fun encodePenMatchesWire() {
+        val b = Protocol.encodePen(40000, 20000, 900, 0x03)  // 0x9C40, 0x4E20, 0x0384, 0x03
+        assertEquals(7, b.size)
+        assertEquals(0x9C.toByte(), b[0]); assertEquals(0x40.toByte(), b[1])
+        assertEquals(0x4E.toByte(), b[2]); assertEquals(0x20.toByte(), b[3])
+        assertEquals(0x03.toByte(), b[4]); assertEquals(0x84.toByte(), b[5])
+        assertEquals(0x03.toByte(), b[6])
+    }
 }
