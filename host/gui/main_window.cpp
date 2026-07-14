@@ -746,17 +746,36 @@ void MainWindow::toggleSelectedMonitorMirror() {
   const int port = s->port;
   const QString id = s->id;
   const bool newMirror = !s->mirror;
+  StreamController* c = s->controller;
+  if (!c) { startSession(key, label, transport, port, id, {}, newMirror); return; }
 
-  // Stop path: same as stopSelectedMonitor() — stop() runs the streamer's graceful-exit
-  // path synchronously (waitForFinished), which fires runningChanged(false) in turn and
-  // tears the old session down (controller deleteLater, row removed, sessions_.remove(key)).
-  if (s->controller) s->controller->stop();
+  // Respawn on the same key/port with the flipped mode, but only AFTER the old
+  // controller's teardown has actually run — not immediately after stop(). The
+  // teardown lambda wired in wireSession() (connected back when this session was
+  // started) removes sessions_[key] and every monitorsList_ row matching key when
+  // runningChanged(false) fires. If we respawned synchronously here instead, a
+  // slow streamer that needs kill() (>3s) would fire that teardown asynchronously
+  // *after* the respawn already inserted a new session+row under the same key —
+  // and the old teardown would then delete the brand-new row, orphaning the live
+  // session (still streaming, but ungovernable from the GUI).
+  //
+  // A one-shot connection on the same signal, connected here (i.e. after
+  // wireSession's), is guaranteed to run after the teardown lambda — Qt fires
+  // same-signal handlers in connection order. So by the time this fires, the old
+  // key/row is already gone and startSession() can't collide with it. This holds
+  // for both exit paths: graceful exit (<3s) runs teardown synchronously inside
+  // stop()'s waitForFinished, so both lambdas fire before stop() even returns;
+  // kill() (>3s) fires runningChanged(false) asynchronously later, and this
+  // handler simply waits for it.
+  connect(c, &StreamController::runningChanged, this,
+      [this, key, label, transport, port, id, newMirror](bool r) {
+        if (r) return;   // only act on the stopped (false) edge
+        startSession(key, label, transport, port, id, {}, newMirror);
+      }, Qt::SingleShotConnection);
 
-  // Respawn on the same key/port with the flipped mode. `directTablet` isn't stored on
-  // Session, so this defaults to no-op (same default startSession uses for the
-  // "waiting for a tablet" case) — the tablet stays connected on this port/key and
-  // reconnects to the new streamer process on its own.
-  startSession(key, label, transport, port, id, {}, newMirror);
+  // Stop path: same as stopSelectedMonitor() — this just triggers the streamer's
+  // exit; the respawn happens in the one-shot handler above once teardown completes.
+  c->stop();
 }
 
 void MainWindow::updateStatus() {
