@@ -167,7 +167,8 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   const bool cur_portrait = h > w;
   tx_.set_orientation_handler([this, &restart_for_orientation, cur_portrait](uint8_t code) {
     if (cfg_.live_orientation) *cfg_.live_orientation = code;
-    if (orientation_is_portrait(code) != cur_portrait) {
+    // mirror tracks the primary, not the tablet — never restart on tablet orientation
+    if (!cfg_.mirror && orientation_is_portrait(code) != cur_portrait) {
       std::fprintf(stderr, "orientation: tablet -> %s; restarting stream at new dims\n",
                    orientation_is_portrait(code) ? "portrait" : "landscape");
       restart_for_orientation = true;

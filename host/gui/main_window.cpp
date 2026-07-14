@@ -769,6 +769,9 @@ void MainWindow::toggleSelectedMonitorMirror() {
   // handler simply waits for it.
   connect(c, &StreamController::runningChanged, this,
       [this, key, label, transport, port, id, newMirror](bool r) {
+        // Safe one-shot: the session is already running when we connect this (c->stop()
+        // is called below, after this connect), so the next runningChanged edge is always
+        // false (stopped) — this guard never eats the single shot on a spurious `true`.
         if (r) return;   // only act on the stopped (false) edge
         startSession(key, label, transport, port, id, {}, newMirror);
       }, Qt::SingleShotConnection);
