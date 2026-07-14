@@ -78,6 +78,14 @@ TEST(ArgsBuilder, TestPatternNeverHasOrientation) {
   EXPECT_FALSE(has(c.args, "--orientation"));   // evdi-only
 }
 
+TEST(ArgsBuilder, MirrorFlag) {
+  Settings s; s.source = Settings::Source::Evdi; s.width = 1280; s.height = 800;
+  auto with = build_command(s, "/bin/streamer", 5000, "droppix-touch", "", /*mirror=*/true);
+  EXPECT_TRUE(has(with.args, "--mirror"));
+  auto without = build_command(s, "/bin/streamer", 5000, "droppix-touch", "", /*mirror=*/false);
+  EXPECT_FALSE(has(without.args, "--mirror"));
+}
+
 TEST(ArgsBuilder, EvdiHasApproveFlag) {
   Settings s; s.source = Settings::Source::Evdi;
   Command c = build_command(s, "/path/droppix_stream");
