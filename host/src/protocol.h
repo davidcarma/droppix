@@ -7,7 +7,7 @@ namespace droppix {
 
 enum class MsgType : uint8_t {
   Hello = 1, Config = 2, Video = 3, Ping = 4, Pong = 5, Bye = 6, Input = 7,
-  Orientation = 8, Audio = 9, Overlay = 10, Touch = 11, Scroll = 12, MouseButton = 13, Key = 14
+  Orientation = 8, Audio = 9, Overlay = 10, Touch = 11, Scroll = 12, MouseButton = 13, Key = 14, Pen = 15
 };
 
 // One finger in a multi-touch report. id is the app's pointer id (stable across a
@@ -114,6 +114,11 @@ bool decode_mouse_button(const std::vector<unsigned char>& body, uint8_t& button
 // KEY (app->host): u16 keycode (evdev keycode), u8 action (0=up, 1=down, 2=repeat).
 std::vector<unsigned char> encode_key(uint16_t keycode, uint8_t action);
 bool decode_key(const std::vector<unsigned char>& body, uint16_t& keycode, uint8_t& action);
+
+// PEN (app->host): u16 x, u16 y, u16 pressure, u8 flags (bit0=touching, bit1=eraser).
+std::vector<unsigned char> encode_pen(uint16_t x, uint16_t y, uint16_t pressure, uint8_t flags);
+bool decode_pen(const std::vector<unsigned char>& body, uint16_t& x, uint16_t& y,
+                uint16_t& pressure, uint8_t& flags);
 
 // ORIENTATION (app->host): u8 code (0=0°, 1=90°, 2=180°, 3=270°).
 std::vector<unsigned char> encode_orientation(uint8_t code);

@@ -269,3 +269,16 @@ TEST(Protocol, KeyShortBodyRejected) {
   uint16_t kc; uint8_t a;
   EXPECT_FALSE(droppix::decode_key(tooShort, kc, a));
 }
+
+TEST(Protocol, PenRoundTrip) {
+  auto b = encode_pen(40000, 20000, 900, 0x03);   // touching + eraser
+  ASSERT_EQ(b.size(), 7u);
+  uint16_t x, y, p; uint8_t f;
+  ASSERT_TRUE(decode_pen(b, x, y, p, f));
+  EXPECT_EQ(x, 40000); EXPECT_EQ(y, 20000); EXPECT_EQ(p, 900); EXPECT_EQ(f, 0x03);
+}
+TEST(Protocol, PenShortBodyRejected) {
+  std::vector<unsigned char> tooShort(6, 0);
+  uint16_t x, y, p; uint8_t f;
+  EXPECT_FALSE(decode_pen(tooShort, x, y, p, f));
+}

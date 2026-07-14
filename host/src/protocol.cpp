@@ -236,6 +236,19 @@ bool decode_key(const std::vector<unsigned char>& b, uint16_t& keycode, uint8_t&
   return true;
 }
 
+std::vector<unsigned char> encode_pen(uint16_t x, uint16_t y, uint16_t pressure, uint8_t flags) {
+  std::vector<unsigned char> b;
+  put_u16(b, x); put_u16(b, y); put_u16(b, pressure); b.push_back(flags);
+  return b;
+}
+bool decode_pen(const std::vector<unsigned char>& b, uint16_t& x, uint16_t& y,
+                uint16_t& pressure, uint8_t& flags) {
+  if (b.size() < 7) return false;
+  x = (uint16_t)((b[0] << 8) | b[1]); y = (uint16_t)((b[2] << 8) | b[3]);
+  pressure = (uint16_t)((b[4] << 8) | b[5]); flags = b[6];
+  return true;
+}
+
 std::vector<unsigned char> encode_orientation(uint8_t code) {
   return {code};
 }
