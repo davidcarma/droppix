@@ -72,6 +72,25 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   if (cver >= 4 && cfg_.live_orientation) *cfg_.live_orientation = sp.orientation;
   int ocode = cfg_.live_orientation ? *cfg_.live_orientation : sp.orientation;
   if (orientation_is_portrait(ocode) && w > h) std::swap(w, h);
+  // Mirror mode: the evdi output must match the PRIMARY's resolution (not the tablet's),
+  // so the compositor's mirror command can present identical content at matching size.
+  // Prefer the output explicitly flagged primary; fall back to the first enabled output
+  // with real geometry if none is flagged (e.g. a backend that never fills .primary).
+  if (cfg_.mirror) {
+    const OutputInfo* prim = nullptr;
+    for (const auto& o : before_outputs)
+      if (o.enabled && o.primary) { prim = &o; break; }
+    if (!prim)
+      for (const auto& o : before_outputs)
+        if (o.enabled && o.geom.w > 0 && o.geom.h > 0) { prim = &o; break; }
+    if (prim) {
+      std::fprintf(stderr, "mirror: overriding source dims %dx%d -> primary %s %dx%d\n",
+                   w, h, prim->name.c_str(), prim->geom.w, prim->geom.h);
+      w = prim->geom.w; h = prim->geom.h;
+    } else {
+      std::fprintf(stderr, "mirror: no primary/enabled output found; keeping tablet dims %dx%d\n", w, h);
+    }
+  }
   src_ = make_source_(w, h);
   if (!src_ || !src_->start(w, h)) { std::fprintf(stderr, "source start failed\n"); return false; }
   std::fprintf(stderr, "source %dx%d\n", w, h);
@@ -125,6 +144,17 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       for (const auto& o : after_outputs)
         if (o.name == droppix.name) { droppix = o; break; }
     }
+    // Apply mirror/extend layout for the droppix output relative to the primary. Runs
+    // unconditionally (not gated on `adopted`): KWin's apply_layout is the mirror/extend
+    // command itself and never overrides adopt_output, so `adopted` is always false there.
+    // For X11 this repeats the extend placement adopt_output already made — harmless and
+    // idempotent. Re-query so touch/encode geometry follow the (possibly new) layout.
+    serviced([this, out_name]{
+      return desktop_->apply_layout(out_name, cfg_.mirror ? LayoutMode::Mirror : LayoutMode::Extend);
+    });
+    after_outputs = query_outputs();
+    for (const auto& o : after_outputs)
+      if (o.name == droppix.name) { droppix = o; break; }
   }
 
   // Auto-orientation: the tablet reports its physical orientation. The stream is
