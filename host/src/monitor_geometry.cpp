@@ -34,7 +34,7 @@ std::vector<OutputInfo> parse_kscreen_outputs(const std::string& text) {
       std::istringstream ls(line.substr(pos + 7));
       int num; std::string name;
       ls >> num >> name;
-      OutputInfo o; o.name = name; outs.push_back(o);
+      OutputInfo o; o.name = name; o.id = num; outs.push_back(o);
       continue;
     }
     if (outs.empty()) continue;
@@ -48,6 +48,13 @@ std::vector<OutputInfo> parse_kscreen_outputs(const std::string& text) {
       // "Geometry: X,Y WxH"
       if (std::sscanf(line.c_str() + gp, "Geometry: %d,%d %dx%d", &x, &y, &w, &h) == 4) {
         outs.back().geom = Rect{x, y, w, h};
+      }
+    }
+    auto pp = line.find("priority");
+    if (pp != std::string::npos) {
+      int pr;
+      if (std::sscanf(line.c_str() + pp, "priority %d", &pr) == 1) {
+        outs.back().primary = (pr == 1);
       }
     }
   }
@@ -70,6 +77,7 @@ std::vector<OutputInfo> parse_xrandr_outputs(const std::string& text) {
     // "WxH+X+Y"; a connected-but-inactive output has none before the "(...)" flags.
     std::string tok;
     while (ls >> tok) {
+      if (tok == "primary") { o.primary = true; continue; }
       int w, h, x, y;
       if (std::sscanf(tok.c_str(), "%dx%d+%d+%d", &w, &h, &x, &y) == 4) {
         o.geom = Rect{x, y, w, h};

@@ -144,3 +144,21 @@ TEST(MonitorGeometry, StripsAnsiColorCodes) {
   EXPECT_EQ(outs[1].name, "DVI-I-1");
   EXPECT_EQ(outs[1].geom.x, 1920); EXPECT_EQ(outs[1].geom.w, 800); EXPECT_EQ(outs[1].geom.h, 600);
 }
+
+TEST(ParseKscreen, IdAndPrimary) {
+  const char* t =
+    "Output: 1 DP-3\n\tenabled\n\tpriority 1\n\tGeometry: 0,0 1920x1080\n"
+    "Output: 70 HDMI-2\n\tenabled\n\tpriority 2\n\tGeometry: 1920,0 1280x1024\n";
+  auto o = droppix::parse_kscreen_outputs(t);
+  ASSERT_EQ(o.size(), 2u);
+  EXPECT_EQ(o[0].id, 1);   EXPECT_TRUE(o[0].primary);
+  EXPECT_EQ(o[1].id, 70);  EXPECT_FALSE(o[1].primary);
+}
+TEST(ParseXrandr, PrimaryFlag) {
+  const char* t =
+    "eDP-1 connected primary 1920x1080+0+0 (normal)\n"
+    "HDMI-2 connected 1280x1024+1920+0 (normal)\n";
+  auto o = droppix::parse_xrandr_outputs(t);
+  ASSERT_EQ(o.size(), 2u);
+  EXPECT_TRUE(o[0].primary);   EXPECT_FALSE(o[1].primary);
+}

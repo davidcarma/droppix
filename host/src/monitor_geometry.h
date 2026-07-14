@@ -3,7 +3,7 @@
 #include <vector>
 #include "input_map.h"   // droppix::Rect
 namespace droppix {
-struct OutputInfo { std::string name; Rect geom; bool enabled = false; };
+struct OutputInfo { std::string name; Rect geom; bool enabled = false; int id = 0; bool primary = false; };
 std::vector<OutputInfo> parse_kscreen_outputs(const std::string& text);
 // Parse `xrandr --query` text (X11 backend). Connected outputs with an active mode
 // ("<name> connected [primary] WxH+X+Y ...") are enabled with geometry; connected-but-
