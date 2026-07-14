@@ -6,12 +6,17 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.text.InputType
 import android.util.AttributeSet
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
+import android.view.View
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import com.droppix.app.protocol.Contact
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -193,6 +198,48 @@ class GlDisplayView @JvmOverloads constructor(context: Context, attrs: Attribute
             if (l != null) heldKeys.forEach { l.onKey(it, 0) }
             heldKeys.clear()
         }
+    }
+
+    override fun onCheckIsTextEditor(): Boolean = true
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        // VISIBLE_PASSWORD + NO_SUGGESTIONS disables predictive composing, so the IME commits
+        // each character immediately (commitText per char) instead of a composing region we'd
+        // have to reconcile. NO_FULLSCREEN keeps the extract editor from covering the stream.
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
+        return KeyInputConnection(this, false)
+    }
+
+    // Soft-keyboard input arrives as committed text / deletions (not KeyEvents). Translate each
+    // char to an evdev keycode (+ Shift) and push it through the same keyListener the physical
+    // keyboard uses. Enter/Del that an IME sends as real KeyEvents flow through onKeyDown/onKeyUp
+    // via BaseInputConnection.sendKeyEvent's default, so they need no handling here.
+    private inner class KeyInputConnection(v: View, full: Boolean) : BaseInputConnection(v, full) {
+        override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            text?.forEach { typeChar(it) }
+            return true
+        }
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            repeat(beforeLength) { tapKey(14) }   // KEY_BACKSPACE
+            repeat(afterLength)  { tapKey(111) }  // KEY_DELETE
+            return true
+        }
+    }
+
+    private fun tapKey(evdev: Int) {
+        val l = keyListener ?: return
+        l.onKey(evdev, 1); l.onKey(evdev, 0)
+    }
+
+    private fun typeChar(c: Char) {
+        val (evdev, shift) = CharMap.toEvdev(c) ?: return
+        val l = keyListener ?: return
+        if (shift) l.onKey(42, 1)        // KEY_LEFTSHIFT down
+        l.onKey(evdev, 1); l.onKey(evdev, 0)
+        if (shift) l.onKey(42, 0)        // KEY_LEFTSHIFT up
     }
 
     // Register (or clear with null) the lifecycle listener. If the decode surface is already
