@@ -164,6 +164,9 @@ void TransportServer::poll_control() {
     } else if (m.type == MsgType::Key && key_handler_) {
       uint16_t kc; uint8_t a;
       if (decode_key(m.body, kc, a)) key_handler_(kc, a);
+    } else if (m.type == MsgType::Pen && pen_handler_) {
+      uint16_t x, y, p; uint8_t f;
+      if (decode_pen(m.body, x, y, p, f)) pen_handler_(x, y, p, f);
     }
   }
 }

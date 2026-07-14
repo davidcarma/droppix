@@ -183,6 +183,7 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
   tx_.set_scroll_handler(nullptr);
   tx_.set_mouse_button_handler(nullptr);
   tx_.set_key_handler(nullptr);
+  tx_.set_pen_handler(nullptr);
   if (cfg_.touch && !have_output) {
     // We can't pin the touchscreen to the droppix output on this compositor (e.g. GNOME,
     // before its DesktopBackend exists) — injecting anyway moves the WRONG monitor's cursor.
@@ -203,11 +204,16 @@ bool StreamDaemon::run_until(const volatile std::sig_atomic_t& stop, int max_fra
       tx_.set_key_handler([&injector](uint16_t kc, uint8_t a) {
         injector.key(kc, a);
       });
+      tx_.set_pen_handler([&injector](uint16_t x, uint16_t y, uint16_t p, uint8_t f) {
+        injector.pen(x, y, p, (f & 1) != 0, (f & 2) != 0);   // bit0=touching, bit1=eraser
+      });
       std::fprintf(stderr, "input: binding touch -> output %s (%dx%d)\n",
                    droppix.name.c_str(), droppix.geom.w, droppix.geom.h);
       auto backend = desktop_;                       // shared_ptr copy keeps it alive
       std::string out_name = droppix.name, tname = cfg_.touch_name;
       std::thread([backend, out_name, tname]{ backend->map_touch(out_name, tname); }).detach();
+      std::string pname = tname + "-pen";
+      std::thread([backend, out_name, pname]{ backend->map_pen(out_name, pname); }).detach();
       // Desktop bounds for the two-finger-tap right-click pointer: prefer --desktop, else
       // the bounding box of all outputs.
       int deskW = cfg_.desktop_w, deskH = cfg_.desktop_h;

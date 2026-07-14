@@ -171,6 +171,17 @@ TEST(TransportServer, KeyHandlerFires) {
   EXPECT_EQ(gotAction, 1);
 }
 
+TEST(TransportServer, PenHandlerFires) {
+  TransportServer s;
+  auto fake = std::make_unique<FakeChannel>();
+  fake->to_recv = encode_message(MsgType::Pen, encode_pen(40000, 20000, 900, 0x01));
+  s.adopt_channel(std::move(fake), "test");
+  uint16_t gx=0, gy=0, gp=0; uint8_t gf=0; int calls=0;
+  s.set_pen_handler([&](uint16_t x, uint16_t y, uint16_t p, uint8_t f){ gx=x; gy=y; gp=p; gf=f; ++calls; });
+  s.poll_control();
+  EXPECT_EQ(calls, 1); EXPECT_EQ(gx, 40000); EXPECT_EQ(gy, 20000); EXPECT_EQ(gp, 900); EXPECT_EQ(gf, 0x01);
+}
+
 TEST(TransportServer, RelistenClosesOldSocketAndSucceeds) {
   TransportServer s;
   ASSERT_TRUE(s.listen(0));        // ephemeral
