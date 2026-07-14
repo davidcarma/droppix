@@ -27,6 +27,14 @@ struct DesktopBackend {
   virtual std::vector<OutputInfo> outputs() = 0;              // enabled outputs w/ geometry
   virtual void map_touch(const std::string& output,
                          const std::string& touch_dev) = 0;   // best-effort; may no-op
+  // Bind the uinput pen device to the droppix output, same idea as map_touch (else pen
+  // strokes land on whatever output the device defaults to, not droppix's). Default
+  // no-op (Generic); X11/KWin override. Returns true if a binding attempt was made
+  // (fire-and-forget on X11) or actually succeeded (KWin confirms via DBus); best-effort,
+  // failure just means the pen may land on the wrong monitor -- display/pen still work.
+  virtual bool map_pen(const std::string& output, const std::string& pen_dev) {
+    (void)output; (void)pen_dev; return false;
+  }
   // Called once the droppix output is identified. Wayland compositors adopt/place evdi
   // outputs themselves (default no-op); X11 must do it explicitly (reverse-PRIME provider
   // link + placement, or the desktop shows black). Returns true if the layout may have
@@ -45,6 +53,7 @@ class KWinBackend : public DesktopBackend {
   const char* name() const override { return "kwin"; }
   std::vector<OutputInfo> outputs() override;
   void map_touch(const std::string& output, const std::string& touch_dev) override;
+  bool map_pen(const std::string& output, const std::string& pen_dev) override;
   bool apply_layout(const std::string& evdi_output, LayoutMode mode) override;
 };
 
@@ -55,8 +64,16 @@ class X11Backend : public DesktopBackend {
   const char* name() const override { return "x11"; }
   std::vector<OutputInfo> outputs() override;
   void map_touch(const std::string& output, const std::string& touch_dev) override;
+  bool map_pen(const std::string& output, const std::string& pen_dev) override;
   bool adopt_output(const std::string& output) override;
   bool apply_layout(const std::string& evdi_output, LayoutMode mode) override;
+
+ private:
+  // Shared `xinput map-to-output` retry/settle script: touch and pen are both absolute
+  // devices, so the binding logic is identical -- only the device name (and log tag)
+  // differ. Returns true once the safety checks pass and the binding attempt was issued
+  // (fire-and-forget completion, like adopt_output/apply_layout).
+  bool map_device_x11(const std::string& output, const std::string& dev, const std::string& tag);
 };
 
 // Unknown/unsupported compositor: display still works (evdi is compositor-driven);

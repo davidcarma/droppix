@@ -72,6 +72,45 @@ void KWinBackend::map_touch(const std::string& output_name, const std::string& t
   std::system(cmd.c_str());
 }
 
+// Best-effort pen->output binding on KWin. The pen is a *tablet* device, not a touch
+// device, so it never appears in InputDeviceManager.ListTouch (used by map_touch above).
+// Instead, enumerate ALL connected input devices via InputDeviceManager's
+// `devicesSysNames` property (verified against KWin's libinput Connection DBus adaptor:
+// org.kde.KWin.InputDeviceManager, Q_PROPERTY QStringList devicesSysNames, alongside the
+// narrower ListPointers/ListTouch/ListKeyboards) -- then bind the match the same way
+// map_touch does: org.kde.KWin.InputDevice Properties.Set mapToWorkspace=false +
+// outputName=<output>. Whether KWin actually honors outputName for a tablet node (as
+// opposed to a touchscreen) is unconfirmed until Task 7's on-device pass; if the device
+// can't be found/bound, this logs a warning and returns false -- droppix keeps working,
+// the pen may just land on the wrong monitor until that's resolved (fallback idea:
+// scale_x/scale_y like the aux pointer).
+bool KWinBackend::map_pen(const std::string& output_name, const std::string& pen_name) {
+  if (!safe_output_name(output_name)) return false;
+  if (!safe_output_name(pen_name)) return false;   // shell-interpolated below; allowlist matters
+  const std::string inner =
+      "QD=; for q in qdbus6 qdbus-qt6 qdbus; do command -v \"$q\" >/dev/null 2>&1 && QD=$q && break; done; "
+      "[ -z \"$QD\" ] && { echo \"[pen-bind] no qdbus available\" >&2; exit 1; }; "
+      "I=org.kde.KWin.InputDevice; M=org.kde.KWin.InputDeviceManager; "
+      "PG=org.freedesktop.DBus.Properties.Get; PS=org.freedesktop.DBus.Properties.Set; "
+      "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do "
+      "for d in $(\"$QD\" org.kde.KWin /org/kde/KWin/InputDevice $PG $M devicesSysNames 2>/dev/null); do "
+      "P=/org/kde/KWin/InputDevice/$d; "
+      "n=$(\"$QD\" org.kde.KWin \"$P\" $PG $I name 2>/dev/null); "
+      "if [ \"$n\" = " + pen_name + " ]; then "
+      "echo \"[pen-bind] found droppix-pen ($d) before mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)] target=" +
+      output_name + "\" >&2; "
+      "\"$QD\" org.kde.KWin \"$P\" $PS $I mapToWorkspace false 2>&1 | sed \"s/^/[pen-bind] set mapToWorkspace: /\" >&2; "
+      "\"$QD\" org.kde.KWin \"$P\" $PS $I outputName " + output_name +
+      " 2>&1 | sed \"s/^/[pen-bind] set outputName: /\" >&2; "
+      "echo \"[pen-bind] after mapToWorkspace=$(\"$QD\" org.kde.KWin \"$P\" $PG $I mapToWorkspace 2>/dev/null) outputName=[$(\"$QD\" org.kde.KWin \"$P\" $PG $I outputName 2>/dev/null)]\" >&2; "
+      "exit 0; fi; done; sleep 0.2; done; "
+      "echo \"[pen-bind] droppix-pen not found via devicesSysNames after retries\" >&2; exit 1";
+  std::string cmd = "timeout 10 " + user_session_prefix() + "sh -c '" + inner + "'";
+  if (std::system(cmd.c_str()) == 0) return true;
+  std::fprintf(stderr, "[pen-bind] KWin pen output-binding unavailable; pen may land on the wrong monitor\n");
+  return false;
+}
+
 std::vector<OutputInfo> X11Backend::outputs() {
   std::string out;
   // timeout 8: during a GPU hotplug (the evdi output appearing) X blocks queries while
@@ -87,34 +126,50 @@ std::vector<OutputInfo> X11Backend::outputs() {
   return parse_xrandr_outputs(out);
 }
 
-// Pin the droppix touch device to the droppix output via `xinput map-to-output`.
-// Retries while X registers the new uinput device (mirrors KWinBackend's wait on
-// ListTouch). Both names pass safe_output_name, so bare interpolation is safe.
-void X11Backend::map_touch(const std::string& output_name, const std::string& touch_name) {
-  if (!safe_output_name(output_name)) return;
-  if (!safe_output_name(touch_name)) return;
-  // map-to-output bakes the output's CURRENT geometry into the device's transform matrix,
-  // so binding before adopt_output's placement has settled in X pins touch to the output's
-  // stale position (wrong screen). Once the device appears, RE-APPLY the mapping until the
-  // target output's geometry stops changing (idempotent + cheap), so the final binding
-  // reflects the settled layout.
+// Pin an absolute input device (touch or pen) to the droppix output via `xinput
+// map-to-output`. Shared by map_touch and map_pen -- touch and pen are both absolute
+// devices, so the same binding logic applies verbatim; `tag` only distinguishes the two
+// in logs. Retries while X registers the new uinput device (mirrors KWinBackend's wait
+// on ListTouch/devicesSysNames). Caller must pass names that pass safe_output_name.
+//
+// map-to-output bakes the output's CURRENT geometry into the device's transform matrix,
+// so binding before adopt_output's placement has settled in X pins the device to the
+// output's stale position (wrong screen). Once the device appears, RE-APPLY the mapping
+// until the target output's geometry stops changing (idempotent + cheap), so the final
+// binding reflects the settled layout.
+bool X11Backend::map_device_x11(const std::string& output_name, const std::string& dev_name,
+                                const std::string& tag) {
+  if (!safe_output_name(output_name)) return false;
+  if (!safe_output_name(dev_name)) return false;   // shell-interpolated below; allowlist matters
   const std::string inner =
-      "N=" + output_name + "; T=" + touch_name + "; "
+      "N=" + output_name + "; T=" + dev_name + "; "
       "geom() { xrandr --query 2>/dev/null | awk -v n=\"$N\" \"\\$1==n{"
       "for(i=1;i<=NF;i++) if(\\$i ~ /[0-9]+x[0-9]+\\+[0-9]+\\+[0-9]+/){print \\$i; exit}}\"; }; "
       "found=0; last=; stable=0; "
       "for i in $(seq 1 25); do "
       "if xinput list --name-only 2>/dev/null | grep -Fxq \"$T\"; then found=1; "
-      "xinput map-to-output \"$T\" \"$N\" 2>&1 | sed \"s/^/[touch-bind] map-to-output: /\" >&2; "
+      "xinput map-to-output \"$T\" \"$N\" 2>&1 | sed \"s/^/[" + tag + "] map-to-output: /\" >&2; "
       "g=$(geom); "
       "if [ -n \"$g\" ] && [ \"$g\" = \"$last\" ]; then stable=$((stable+1)); "
-      "[ \"$stable\" -ge 3 ] && { echo \"[touch-bind] mapped $T -> $N @ $g\" >&2; exit 0; }; "
+      "[ \"$stable\" -ge 3 ] && { echo \"[" + tag + "] mapped $T -> $N @ $g\" >&2; exit 0; }; "
       "else stable=0; fi; last=$g; "
       "fi; sleep 0.2; done; "
-      "[ \"$found\" = 1 ] && echo \"[touch-bind] mapped $T -> $N (layout unsettled)\" >&2 || "
-      "echo \"[touch-bind] $T not found via xinput after retries\" >&2";
+      "[ \"$found\" = 1 ] && echo \"[" + tag + "] mapped $T -> $N (layout unsettled)\" >&2 || "
+      "echo \"[" + tag + "] $T not found via xinput after retries\" >&2";
   std::string cmd = "timeout 10 " + user_session_prefix() + "sh -c '" + inner + "'";
   std::system(cmd.c_str());
+  return true;
+}
+
+void X11Backend::map_touch(const std::string& output_name, const std::string& touch_name) {
+  map_device_x11(output_name, touch_name, "touch-bind");
+}
+
+// Bind the pen device to the droppix output. `xinput map-to-output` works for any
+// absolute device (not just touch), so this is the identical binding, just a different
+// device name/log tag -- see map_device_x11.
+bool X11Backend::map_pen(const std::string& output_name, const std::string& pen_name) {
+  return map_device_x11(output_name, pen_name, "pen-bind");
 }
 
 // Adopt the just-appeared droppix output on X11. Xorg hot-adds the evdi card as a
