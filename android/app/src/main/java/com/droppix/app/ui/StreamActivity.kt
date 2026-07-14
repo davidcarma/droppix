@@ -11,6 +11,7 @@ import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
 import android.content.Context
@@ -51,6 +52,7 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
     @Volatile private var client: TransportClient? = null
     @Volatile private var audioPlayer: AudioPlayer? = null
     private lateinit var surfaceView: GlDisplayView
+    private var imeShown = false
 
     // Auto-orientation: the Activity follows the sensor (manifest fullSensor) so Android
     // rotates the display naturally. We detect the physical orientation and report it; on
@@ -75,6 +77,9 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_stream)
+        // Don't let the IME resize/pan the window when it appears: the surface is a fixed-size
+        // video sink, not scrollable content.
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         surfaceView = findViewById(R.id.surface)
         // In-stream entry point to Settings. Must be a real overlay View (topmost FrameLayout
         // child) rather than a long-press on the surface: GlDisplayView.onTouchEvent
@@ -82,6 +87,7 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
         findViewById<Button>(R.id.settings_overlay_btn).setOnClickListener {
             startActivity(android.content.Intent(this, SettingsActivity::class.java))
         }
+        findViewById<Button>(R.id.kbd_overlay_btn).setOnClickListener { toggleSoftKeyboard() }
         overlay = findViewById(R.id.overlay)
         overlay.visibility = View.GONE   // shown only if the host asks (Settings → performance overlay)
         applyImmersive()
@@ -105,6 +111,20 @@ class StreamActivity : Activity(), GlDisplayView.SurfaceListener {
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
+    }
+
+    // Toggles the Android soft keyboard on/off, targeting surfaceView so IME text lands in
+    // Task 2's InputConnection -> keyListener -> client.sendKey path. Dismissing via Back may
+    // desync imeShown by one tap (acceptable; the next tap re-syncs).
+    private fun toggleSoftKeyboard() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        if (imeShown) {
+            imm.hideSoftInputFromWindow(surfaceView.windowToken, 0)
+        } else {
+            surfaceView.requestFocus()
+            imm.showSoftInput(surfaceView, 0)
+        }
+        imeShown = !imeShown
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

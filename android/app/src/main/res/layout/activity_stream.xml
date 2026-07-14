@@ -42,4 +42,26 @@
         android:background="#80000000"
         android:contentDescription="Settings"
         android:text="⚙" />
+
+    <!-- Toggles the Android soft keyboard for text entry into the remote session (Task 2's
+         InputConnection attaches to GlDisplayView). Same topmost-FrameLayout-child trick as
+         settings_overlay_btn, offset left via layout_marginEnd so the two buttons don't overlap. -->
+    <Button
+        android:id="@+id/kbd_overlay_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:layout_marginEnd="64dp"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:background="#80000000"
+        android:contentDescription="Keyboard"
+        android:text="Keyboard" />
 </FrameLayout>
