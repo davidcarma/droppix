@@ -37,10 +37,13 @@ class MainWindow : public QMainWindow {
   void onStartStop();           // Start button -> spawn a session on the next free port
   // Spawn a streaming session: a new StreamController on `port`, wired, started, added to
   // the Active-monitors panel; `directTablet` (may be empty) WAKEs the tablet to dial in.
+  // `mirror` selects Mirror mode (evdi mirrors an existing display) vs. the default Extend.
   void startSession(const QString& key, const QString& label, const QString& transport,
-                    int port, const QString& id, std::function<void()> directTablet);
+                    int port, const QString& id, std::function<void()> directTablet,
+                    bool mirror = false);
   void wireSession(StreamController* c, const QString& key);
   void stopSelectedMonitor();   // stop the session selected in the Active-monitors list
+  void toggleSelectedMonitorMirror();   // flip Extend<->Mirror for the selected monitor (stop+restart)
   void updateStatus();          // status dot/text from session count + connectivity
   void refreshProfiles();
   void restoreLastProfile();

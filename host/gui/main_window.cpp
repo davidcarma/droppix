@@ -201,13 +201,16 @@ MainWindow::MainWindow(QWidget* parent)
   monitorsList_ = new QListWidget;
   monitorsList_->setMaximumHeight(96);
   auto* stopMonBtn = new QPushButton("Stop selected");
+  auto* toggleMirrorBtn = new QPushButton("Toggle mirror");
   auto* monLayout = new QVBoxLayout;
   monLayout->addWidget(monitorsList_);
   monLayout->addWidget(stopMonBtn);
+  monLayout->addWidget(toggleMirrorBtn);
   monitorsBox_ = new QGroupBox("Active monitors");
   monitorsBox_->setLayout(monLayout);
   monitorsBox_->hide();   // shown when >= 1 session is live
   connect(stopMonBtn, &QPushButton::clicked, this, &MainWindow::stopSelectedMonitor);
+  connect(toggleMirrorBtn, &QPushButton::clicked, this, &MainWindow::toggleSelectedMonitorMirror);
 
   // --- Devices on network (mDNS-discovered tablets) ---
   devicesList_ = new QListWidget;
@@ -655,23 +658,26 @@ void MainWindow::onStartStop() {
 }
 
 void MainWindow::startSession(const QString& key, const QString& label, const QString& transport,
-                              int port, const QString& id, std::function<void()> directTablet) {
+                              int port, const QString& id, std::function<void()> directTablet,
+                              bool mirror) {
   auto* c = new StreamController(this);
   wireSession(c, key);
   Settings s = collectSettings();
   const std::string tname = ("droppix-touch-" + QString::number(port)).toStdString();
   const std::string aoaSerial = (transport == "usb-aoa") ? id.toStdString() : std::string();
-  Command cmd = build_command(s, streamBin_, port, tname, aoaSerial);
+  Command cmd = build_command(s, streamBin_, port, tname, aoaSerial, mirror);
   qInfo("$ %s ... (:%d)", cmd.program.c_str(), port);
   c->start(cmd);
 
   Session sess;
   sess.controller = c; sess.port = port; sess.key = key; sess.label = label;
   sess.transport = transport; sess.id = id; sess.touchName = QString::fromStdString(tname);
+  sess.mirror = mirror;
   sessions_.add(sess);
 
   auto* row = new QListWidgetItem(
-      QString("%1  ·  %2  ·  :%3").arg(label, transport.isEmpty() ? "—" : transport).arg(port));
+      QString("%1  ·  %2  ·  :%3%4").arg(label, transport.isEmpty() ? "—" : transport)
+          .arg(port).arg(mirror ? " — Mirror" : ""));
   row->setData(Qt::UserRole, key);
   monitorsList_->addItem(row);
   monitorsBox_->show();
@@ -724,6 +730,33 @@ void MainWindow::stopSelectedMonitor() {
   if (!item) return;
   if (Session* s = sessions_.find(item->data(Qt::UserRole).toString()))
     if (s->controller) s->controller->stop();   // runningChanged(false) removes the row + session
+}
+
+void MainWindow::toggleSelectedMonitorMirror() {
+  // Selected-row -> Session lookup, exactly like stopSelectedMonitor().
+  auto* item = monitorsList_->currentItem();
+  if (!item) return;
+  const QString key = item->data(Qt::UserRole).toString();
+  Session* s = sessions_.find(key);
+  if (!s) return;
+
+  // Capture identity fields before the session is torn down.
+  const QString label = s->label;
+  const QString transport = s->transport;
+  const int port = s->port;
+  const QString id = s->id;
+  const bool newMirror = !s->mirror;
+
+  // Stop path: same as stopSelectedMonitor() — stop() runs the streamer's graceful-exit
+  // path synchronously (waitForFinished), which fires runningChanged(false) in turn and
+  // tears the old session down (controller deleteLater, row removed, sessions_.remove(key)).
+  if (s->controller) s->controller->stop();
+
+  // Respawn on the same key/port with the flipped mode. `directTablet` isn't stored on
+  // Session, so this defaults to no-op (same default startSession uses for the
+  // "waiting for a tablet" case) — the tablet stays connected on this port/key and
+  // reconnects to the new streamer process on its own.
+  startSession(key, label, transport, port, id, {}, newMirror);
 }
 
 void MainWindow::updateStatus() {

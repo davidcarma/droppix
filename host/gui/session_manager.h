@@ -17,6 +17,7 @@ struct Session {
   QString label;       // display name
   QString transport;   // "usb" | "net"
   QString id;          // tablet device id (cross-transport identity; may be empty)
+  bool mirror = false; // true = mirroring an existing display; false = extended virtual monitor
 };
 
 // Bookkeeping for the set of live sessions. No Qt event handling — pure container logic,
