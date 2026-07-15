@@ -45,6 +45,7 @@ add_library(droppix_core
   src/aoa_scan.cpp
   src/desktop_backend.cpp
   src/session_params.cpp
+  src/encoder_factory.cpp
 )
 target_include_directories(droppix_core PUBLIC
   src
@@ -140,6 +141,7 @@ add_executable(droppix_tests
   tests/test_audio_sink.cpp
   tests/test_aoa_scan.cpp
   tests/test_desktop_backend.cpp
+  tests/test_encoder_factory.cpp
   gui/tests/test_port_alloc.cpp
   gui/stats_parser.cpp
   gui/args_builder.cpp

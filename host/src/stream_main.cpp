@@ -14,6 +14,7 @@
 #include "software_encoder.h"
 #include "approval.h"
 #include "aoa_connect.h"
+#include "encoder_factory.h"
 
 static volatile std::sig_atomic_t g_stop = 0;
 static void on_sigint(int) { g_stop = 1; }
@@ -48,6 +49,7 @@ int main(int argc, char** argv) {
   std::string usb_aoa;   // --usb-aoa <serial>: serve one tablet over USB (AOA), not TCP
   int mx = 0, my = 0, mw = 0, mh = 0, dtw = 0, dth = 0;  // --monitor / --desktop
   int orientation = 0;                                   // --orientation 0/90/180/270
+  droppix::EncoderPref encoder_pref = droppix::EncoderPref::Auto;
 
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -75,6 +77,7 @@ int main(int argc, char** argv) {
     else if (a == "--audio") audio = true;
     else if (a == "--overlay") overlay = true;
     else if (a == "--usb-aoa") usb_aoa = sval();
+    else if (a == "--encoder") encoder_pref = droppix::parse_encoder_pref(sval());
     else { std::fprintf(stderr, "unknown arg: %s\n", a.c_str()); return 2; }
   }
 
