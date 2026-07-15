@@ -25,6 +25,7 @@ add_library(droppix_core
   src/protocol.cpp
   src/software_encoder.cpp
   src/nvenc_encoder.cpp
+  src/vaapi_encoder.cpp
   src/nv12_converter.cpp
   src/test_pattern_source.cpp
   src/evdi_frame_source.cpp
