@@ -4,7 +4,6 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/opt.h>
-#include <libavutil/imgutils.h>
 #include <libavutil/hwcontext.h>
 }
 
@@ -19,6 +18,9 @@ void VaapiEncoder::free_attempt() {
 bool VaapiEncoder::open(int width, int height, int fps, int bitrate_kbps) {
   width_ = width; height_ = height; fps_ = fps;
 
+  const AVCodec* codec = avcodec_find_encoder_by_name("h264_vaapi");
+  if (!codec) { std::fprintf(stderr, "h264_vaapi encoder not found\n"); return false; }
+
   const char* nodes[] = {
       nullptr,  // default device resolution
       "/dev/dri/renderD128", "/dev/dri/renderD129", "/dev/dri/renderD130",
@@ -26,28 +28,27 @@ bool VaapiEncoder::open(int width, int height, int fps, int bitrate_kbps) {
       "/dev/dri/renderD134", "/dev/dri/renderD135",
   };
 
-  const char* winning_node = nullptr;
-  for (const char* node : nodes) {
+  // One full open attempt (device + frames ctx + codec ctx + avcodec_open2)
+  // for a given node/low_power combo. On any failure this tears the whole
+  // attempt down via free_attempt() so the next attempt starts clean.
+  auto try_open = [&](const char* node, bool low_power) -> bool {
     if (av_hwdevice_ctx_create(&hw_device_, AV_HWDEVICE_TYPE_VAAPI, node, nullptr, 0) < 0) {
       hw_device_ = nullptr;
-      continue;
+      return false;
     }
 
     // Frames ctx: VAAPI hw surfaces backed by NV12 sw layout.
     hw_frames_ = av_hwframe_ctx_alloc(hw_device_);
-    if (!hw_frames_) { free_attempt(); continue; }
+    if (!hw_frames_) { free_attempt(); return false; }
     auto* fc = reinterpret_cast<AVHWFramesContext*>(hw_frames_->data);
     fc->format = AV_PIX_FMT_VAAPI;
     fc->sw_format = AV_PIX_FMT_NV12;
     fc->width = width;
     fc->height = height;
-    if (av_hwframe_ctx_init(hw_frames_) < 0) { free_attempt(); continue; }
-
-    const AVCodec* codec = avcodec_find_encoder_by_name("h264_vaapi");
-    if (!codec) { std::fprintf(stderr, "h264_vaapi encoder not found\n"); free_attempt(); break; }
+    if (av_hwframe_ctx_init(hw_frames_) < 0) { free_attempt(); return false; }
 
     ctx_ = avcodec_alloc_context3(codec);
-    if (!ctx_) { free_attempt(); continue; }
+    if (!ctx_) { free_attempt(); return false; }
     ctx_->width = width;
     ctx_->height = height;
     ctx_->pix_fmt = AV_PIX_FMT_VAAPI;
@@ -61,20 +62,32 @@ bool VaapiEncoder::open(int width, int height, int fps, int bitrate_kbps) {
     ctx_->rc_buffer_size = static_cast<int>(ctx_->bit_rate / std::max(1, fps) * 2);  // ~2 frames
     ctx_->hw_frames_ctx = av_buffer_ref(hw_frames_);
     av_opt_set(ctx_->priv_data, "rc_mode", "CBR", 0);
+    // Newer Intel iGPUs (e.g. Xe/Arc) only expose the low-power H.264 encode
+    // entrypoint (VAEntrypointEncSliceLP); a plain h264_vaapi open fails
+    // there unless low_power is explicitly requested.
+    if (low_power) av_opt_set_int(ctx_->priv_data, "low_power", 1, 0);
     // NO AV_CODEC_FLAG_GLOBAL_HEADER -> SPS/PPS repeated in-band per IDR.
 
-    if (avcodec_open2(ctx_, codec, nullptr) == 0) {
-      winning_node = node;
-      break;  // this node fully opened -> keep it
-    }
-    // Failed on this node (e.g. default resolved to an NVDEC decode-only
-    // backend) -> free everything from this attempt and try the next node.
+    if (avcodec_open2(ctx_, codec, nullptr) == 0) return true;
+    // Failed on this attempt (e.g. default resolved to an NVDEC decode-only
+    // backend, or the node lacks the requested entrypoint) -> free
+    // everything from this attempt so the next one starts clean.
     free_attempt();
+    return false;
+  };
+
+  const char* winning_node = nullptr;
+  bool winning_low_power = false;
+  for (const char* node : nodes) {
+    if (try_open(node, false)) { winning_node = node; winning_low_power = false; break; }
+    if (try_open(node, true)) { winning_node = node; winning_low_power = true; break; }
   }
 
   if (!ctx_ || !avcodec_is_open(ctx_)) return false;
 
-  std::fprintf(stderr, "h264_vaapi opened on %s\n", winning_node ? winning_node : "(default)");
+  std::fprintf(stderr, "encoder: using vaapi (%s%s)\n",
+               winning_node ? winning_node : "(default)",
+               winning_low_power ? ", low_power" : "");
 
   if (!conv_.open(width, height)) { free_attempt(); return false; }
 

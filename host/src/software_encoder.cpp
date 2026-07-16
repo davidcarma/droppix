@@ -51,7 +51,10 @@ bool SoftwareEncoder::open(int width, int height, int fps, int bitrate_kbps) {
   pkt_ = av_packet_alloc();
   if (!pkt_) return false;
 
-  return conv_.open(width, height);
+  if (!conv_.open(width, height)) return false;
+
+  std::fprintf(stderr, "encoder: using software (x264)\n");
+  return true;
 }
 
 std::vector<unsigned char> SoftwareEncoder::extradata() const {

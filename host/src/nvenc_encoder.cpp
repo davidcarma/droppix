@@ -4,7 +4,6 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/opt.h>
-#include <libavutil/imgutils.h>
 }
 
 namespace droppix {
@@ -44,7 +43,10 @@ bool NvencEncoder::open(int width, int height, int fps, int bitrate_kbps) {
   if (!conv_.open(width, height)) return false;
 
   pkt_ = av_packet_alloc();
-  return pkt_ != nullptr;
+  if (!pkt_) return false;
+
+  std::fprintf(stderr, "encoder: using nvenc\n");
+  return true;
 }
 
 std::vector<unsigned char> NvencEncoder::extradata() const {

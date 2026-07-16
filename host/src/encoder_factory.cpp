@@ -34,7 +34,6 @@ bool AutoEncoder::open(int w, int h, int fps, int br) {
   for (size_t i = 0; i < candidates_.size(); ++i) {
     auto e = candidates_[i]();
     if (e && e->open(w, h, fps, br)) {
-      std::fprintf(stderr, "encoder: backend %zu opened\n", i);
       chosen_ = std::move(e);
       return true;
     }
