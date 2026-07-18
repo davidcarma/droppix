@@ -83,6 +83,6 @@ evdi → Capturer → Encoder (NVENC|VAAPI|x264) → TransportServer
 
 ## Recent session notes
 
-- **2026-07-18:** First docs PR opened: https://github.com/Spinjitsudoom/droppix/pull/3 (`docs/bring-current-and-agent-sync` from fork `davidcarma/droppix` - upstream write access is READ-only for davidcarma).
+- **2026-07-18:** Docs branch merged into **local** `master` (ahead of `origin/master` by 3). Upstream PR still open: https://github.com/Spinjitsudoom/droppix/pull/3 - `davidcarma` cannot merge/push to `Spinjitsudoom/droppix` (READ only); owner must merge PR or grant Write.
 - **2026-07-18:** Claude ↔ Cursor tooling sync: canonical rules/skills under `.claude/`; `.cursor/rules/*.mdc` and `.cursor/skills/<name>` are symlinks. Always-on rules: `docs-maintenance`, `agent-tooling-sync`. Verify with `scripts/check-agent-sync.sh`.
 - **2026-07-18:** Full docs refresh. Added living STATUS/WIRE, updated README for HW encode + `client/` + transports, marked shipped specs, scaffolded `docs/lessons/`, added `client/README.md`. Only open roadmap called out: Sway/GNOME backends.
