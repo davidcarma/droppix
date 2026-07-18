@@ -15,7 +15,7 @@ License: MIT
 
 - Work locally; open PRs from `davidcarma` → `Spinjitsudoom`.
 - When he catches up: `git fetch upstream && git merge upstream/master` then `git push origin master`.
-- Open PR: https://github.com/Spinjitsudoom/droppix/pull/3
+- Open PR: https://github.com/Spinjitsudoom/droppix/pull/4 (`davidcarma:master` → `Spinjitsudoom:master`; #3 closed)
 
 ## Current state (as of 2026-07-18)
 
@@ -89,10 +89,10 @@ evdi → Capturer → Encoder (NVENC|VAAPI|x264) → TransportServer
 - [docs/STATUS.md](docs/STATUS.md)
 - [docs/WIRE.md](docs/WIRE.md)
 - [docs/README.md](docs/README.md)
-- [PR #3](https://github.com/Spinjitsudoom/droppix/pull/3)
+- [PR #4](https://github.com/Spinjitsudoom/droppix/pull/4)
 
 ## Recent session notes
 
+- **2026-07-18:** Closed PR #3; opened [PR #4](https://github.com/Spinjitsudoom/droppix/pull/4) from `davidcarma:master` so the PR head matches fork master.
 - **2026-07-18:** Local-first workflow: `origin`=`davidcarma/droppix` (push), `upstream`=`Spinjitsudoom/droppix` (fetch only). PRs from fork; resync later with `git fetch upstream && git merge upstream/master`.
-- **2026-07-18:** Docs + agent sync on local `master`; open upstream PR #3.
 - **2026-07-18:** Claude ↔ Cursor tooling: canonical under `.claude/`; Cursor symlinks; `scripts/check-agent-sync.sh`.
