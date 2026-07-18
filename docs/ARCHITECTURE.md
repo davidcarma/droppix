@@ -18,7 +18,7 @@ graph TB
         subgraph Streamer["droppix_stream (per session, often via pkexec)"]
             EVDI["evdi virtual display"]
             CAP["FrameSource<br/>EvdiFrameSource / TestPattern"]
-            ENC["Encoder<br/>AutoEncoder: NVENC → VAAPI → x264"]
+            ENC["Encoder<br/>AutoEncoder: NVENC then VAAPI then x264"]
             TX["TransportServer<br/>ByteChannel + TLS"]
             INJ["InputInjector<br/>touch / pen / keys / mouse"]
             AUD["AudioStreamer<br/>pw-record monitor"]
@@ -38,11 +38,13 @@ graph TB
 
     subgraph Clients["Clients"]
         AND["Android app<br/>MediaCodec + GlDisplayView"]
-        LNX["Linux client/<br/>FFmpeg decode + Qt"]
+        LNX["Linux client<br/>FFmpeg decode + Qt"]
     end
 
-    TX <-->|"wire protocol v5<br/>WiFi TLS / USB / tether / AOA"| AND
-    TX <-->|"same protocol"| LNX
+    TX -->|"wire protocol v5"| AND
+    AND -->|"input / HELLO"| TX
+    TX -->|"wire protocol v5"| LNX
+    LNX -->|"input / HELLO"| TX
 ```
 
 ## Process topology
@@ -79,19 +81,19 @@ sequenceDiagram
     participant E as Encoder
     participant K as Compositor + evdi
 
-    C->>T: HELLO v5 (w/h/fps/bitrate/audio/…)
-    T->>D: handshake OK + approve gate
-    D->>F: make_source(w,h) → start evdi
-    F->>K: EDID + connector appears
-    D->>K: DesktopBackend adopt / layout / map devices
-    D->>E: open(w,h,fps,bitrate)
+    C->>T: HELLO v5 dims fps bitrate audio
+    T->>D: handshake OK plus approve gate
+    D->>F: make_source then start evdi
+    F->>K: EDID plus connector appears
+    D->>K: DesktopBackend adopt layout map devices
+    D->>E: open encoder
     D->>T: CONFIG
     loop each frame
         F->>D: Frame BGRA
-        D->>E: encode → H.264 AU
-        E->>T: VIDEO (in-band SPS/PPS on IDR)
+        D->>E: encode H.264 AU
+        E->>T: VIDEO with in-band SPS PPS on IDR
         T->>C: VIDEO
-        C->>C: MediaCodec / FFmpeg → display
+        C->>C: MediaCodec or FFmpeg display
     end
 ```
 
@@ -151,8 +153,10 @@ graph TB
     GUI --> S2[streamer B]
     S1 --> E1[evdi monitor A @ native res]
     S2 --> E2[evdi monitor B @ native res]
-    A1[Tablet A] <--> S1
-    A2[Tablet B] <--> S2
+    A1[Tablet A] -->|wire| S1
+    S1 -->|video| A1
+    A2[Tablet B] -->|wire| S2
+    S2 -->|video| A2
 ```
 
 - One `droppix_stream` per tablet; GUI owns lifecycle (`host/gui/session_manager.*`, `port_alloc.*`).
@@ -168,9 +172,9 @@ flowchart TB
     PROTO --> SOCK[SocketChannel TCP]
     PROTO --> AOA[AoAChannel USB accessory]
     SOCK --> WIFI[WiFi + mDNS + TLS PIN]
-    SOCK --> ADB[USB adb reverse → localhost]
+    SOCK --> ADB[USB adb reverse to localhost]
     SOCK --> TETHER[USB tethering + UDP probe]
-    AOA --> ACCESSORY[libusb host ↔ UsbAccessory app]
+    AOA --> ACCESSORY[libusb host to UsbAccessory app]
 ```
 
 | Path | Discovery | Trust |
@@ -185,28 +189,21 @@ flowchart TB
 Compositor-specific work is behind one interface (`host/src/desktop_backend.*`). Display creation itself is evdi; backends handle geometry, touch/pen binding, and mirror/extend layout.
 
 ```mermaid
-classDiagram
-    class DesktopBackend {
-        <<interface>>
-        +name()
-        +outputs()
-        +map_touch(output, touch_dev)
-        +map_pen(output, pen_dev)
-        +adopt_output(output)
-        +apply_layout(evdi_output, mode)
-    }
-    class KWinBackend
-    class X11Backend
-    class GenericBackend
-    DesktopBackend <|-- KWinBackend
-    DesktopBackend <|-- X11Backend
-    DesktopBackend <|-- GenericBackend
-    KWinBackend : kscreen-doctor + KWin InputDevice DBus
-    X11Backend : xrandr + xinput map-to-output
-    GenericBackend : display may work; touch map no-op
+graph TB
+    IFACE["DesktopBackend interface<br/>outputs map_touch map_pen<br/>adopt_output apply_layout"]
+    IFACE --> KWIN["KWinBackend<br/>kscreen-doctor + KWin DBus"]
+    IFACE --> X11["X11Backend<br/>xrandr + xinput map-to-output"]
+    IFACE --> GEN["GenericBackend<br/>display may work - touch map no-op"]
 ```
 
-Roadmap (not shipped): Sway / GNOME Wayland backends — see [`superpowers/specs/2026-07-05-cross-desktop-portability-design.md`](superpowers/specs/2026-07-05-cross-desktop-portability-design.md).
+| Backend | Shipped | Notes |
+|---|---|---|
+| `KWinBackend` | Yes | `kscreen-doctor` + KWin InputDevice DBus |
+| `X11Backend` | Yes | `xrandr` + `xinput map-to-output` |
+| `GenericBackend` | Yes | Display may work; touch map is a no-op |
+| Sway / GNOME Wayland | No | See [cross-desktop roadmap](superpowers/specs/2026-07-05-cross-desktop-portability-design.md) |
+
+Roadmap (not shipped): Sway / GNOME Wayland backends - see [`superpowers/specs/2026-07-05-cross-desktop-portability-design.md`](superpowers/specs/2026-07-05-cross-desktop-portability-design.md).
 
 ## Client decode paths
 
@@ -217,7 +214,7 @@ graph LR
         ST --> GL[GlDisplayView shader]
         GL --> FX[flip / brightness / contrast]
     end
-    subgraph LinuxClient["client/"]
+    subgraph LinuxClient["Linux client"]
         FF[FFmpeg decode] --> QV[Qt video widget]
         QV --> FX2[flip / luma adjust]
     end
@@ -239,9 +236,9 @@ sequenceDiagram
     H->>H: approve gate (if required)
     H->>H: create FrameSource + open Encoder
     H->>C: CONFIG
-    H->>C: VIDEO…
-    C->>H: Touch / Pen / Key / …
-    H->>C: Audio / Overlay (optional)
+    H->>C: VIDEO stream
+    C->>H: Touch Pen Key messages
+    H->>C: Audio Overlay optional
     C->>H: Ping
     H->>C: Pong
 ```
