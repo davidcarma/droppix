@@ -14,6 +14,7 @@ Read [`scratchpad.md`](../../scratchpad.md) first, then [`docs/STATUS.md`](../..
 | Doc | Update when… |
 |---|---|
 | [`docs/STATUS.md`](../../docs/STATUS.md) | Feature ships, partials, or roadmap changes; bump **Last verified** + commit/date |
+| [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) | Structural change: new process, transport, encoder path, DesktopBackend, session model |
 | [`docs/WIRE.md`](../../docs/WIRE.md) | Any wire change: `MsgType`, HELLO version/fields, framing, pairing/TLS assumptions |
 | [`README.md`](../../README.md) | User-visible capability, layout path, build/req, or packaging story changes |
 | [`docs/README.md`](../../docs/README.md) | Docs hub / open-roadmap summary changes |

@@ -20,6 +20,7 @@
 
 ## Related external docs
 
+- [../ARCHITECTURE.md](../ARCHITECTURE.md) — system architecture
 - [../STATUS.md](../STATUS.md) — feature / design status
 - [../WIRE.md](../WIRE.md) — current protocol
 - [../../scratchpad.md](../../scratchpad.md) — session memory

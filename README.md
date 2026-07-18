@@ -88,6 +88,7 @@ See [`docs/WIRE.md`](docs/WIRE.md) and `host/src/protocol.h`.
 
 | Doc | Purpose |
 |-----|---------|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture + Mermaid diagrams |
 | [`docs/STATUS.md`](docs/STATUS.md) | Living feature / design status |
 | [`docs/WIRE.md`](docs/WIRE.md) | Current protocol summary |
 | [`docs/README.md`](docs/README.md) | Docs index |

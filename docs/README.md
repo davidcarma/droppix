@@ -4,6 +4,7 @@ Start here:
 
 | Doc | Purpose |
 |---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture + Mermaid diagrams |
 | [STATUS.md](STATUS.md) | **Living** feature / design status (overrides stale Status lines in older specs) |
 | [WIRE.md](WIRE.md) | Current wire protocol (v5) summary |
 | [../README.md](../README.md) | Build, requirements, layout |

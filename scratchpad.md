@@ -25,7 +25,7 @@ License: MIT
 - **Desktop client:** Qt6 Linux receive client in `client/` (decode-only).
 - **Packaging:** AppImage + Flatpak (host + client); Android APK script.
 - **macOS:** archived under `macos/` — not in build.
-- **Docs:** [`docs/STATUS.md`](docs/STATUS.md), [`docs/WIRE.md`](docs/WIRE.md), [`docs/README.md`](docs/README.md), [`docs/lessons/`](docs/lessons/).
+- **Docs:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/STATUS.md`](docs/STATUS.md), [`docs/WIRE.md`](docs/WIRE.md), [`docs/README.md`](docs/README.md), [`docs/lessons/`](docs/lessons/).
 - **Open roadmap:** cross-desktop M2 Sway / M3 GNOME Wayland.
 
 ## Key decisions (do not re-debate)
@@ -63,6 +63,7 @@ evdi → Capturer → Encoder (NVENC|VAAPI|x264) → TransportServer
 | `.cursor/rules/*.mdc` | Symlinks → `.claude/rules/` |
 | `.claude/skills/` | Canonical project skills |
 | `scripts/check-agent-sync.sh` | Enforce Claude ↔ Cursor symlink sync |
+| `docs/ARCHITECTURE.md` | System architecture + Mermaid |
 | `docs/STATUS.md` | Living feature status |
 | `docs/WIRE.md` | Current protocol summary |
 | `docs/superpowers/specs/` | Design specs |
@@ -86,6 +87,7 @@ evdi → Capturer → Encoder (NVENC|VAAPI|x264) → TransportServer
 ## Links
 
 - [README.md](README.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/STATUS.md](docs/STATUS.md)
 - [docs/WIRE.md](docs/WIRE.md)
 - [docs/README.md](docs/README.md)
@@ -93,6 +95,7 @@ evdi → Capturer → Encoder (NVENC|VAAPI|x264) → TransportServer
 
 ## Recent session notes
 
+- **2026-07-18:** Added [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) with Mermaid (system, processes, video/input, multi-monitor, transports, DesktopBackend, clients, handshake).
 - **2026-07-18:** Closed PR #3; opened [PR #4](https://github.com/Spinjitsudoom/droppix/pull/4) from `davidcarma:master` so the PR head matches fork master.
 - **2026-07-18:** Local-first workflow: `origin`=`davidcarma/droppix` (push), `upstream`=`Spinjitsudoom/droppix` (fetch only). PRs from fork; resync later with `git fetch upstream && git merge upstream/master`.
 - **2026-07-18:** Claude ↔ Cursor tooling: canonical under `.claude/`; Cursor symlinks; `scripts/check-agent-sync.sh`.
