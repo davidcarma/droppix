@@ -56,6 +56,7 @@ evdi → Capturer → Encoder → TransportServer
 | `android/` | Kotlin tablet client |
 | `client/` | Qt6 Linux receive client |
 | `web/` | Host-served PWA shell + WSS client |
+| `macos/` | Archived Mac host spike; see CGVirtualDisplay research |
 | `packaging/` | AppImage, Flatpak, APK |
 | `docs/` | STATUS, WIRE, ARCHITECTURE, specs |
 
@@ -78,10 +79,12 @@ evdi → Capturer → Encoder → TransportServer
 - [docs/STATUS.md](docs/STATUS.md)
 - [docs/WIRE.md](docs/WIRE.md)
 - [web/README.md](web/README.md)
-- [spec](docs/superpowers/specs/2026-07-18-web-pwa-client-design.md)
+- [web PWA design](docs/superpowers/specs/2026-07-18-web-pwa-client-design.md)
+- [CGVirtualDisplay OSS research](docs/superpowers/specs/2026-07-18-cgvirtualdisplay-oss-research.md)
 
 ## Recent session notes
 
+- **2026-07-18:** Parked CGVirtualDisplay OSS research: [`docs/superpowers/specs/2026-07-18-cgvirtualdisplay-oss-research.md`](docs/superpowers/specs/2026-07-18-cgvirtualdisplay-oss-research.md). Decision: own thin `macos/` wrapper; crib DeskPad/VDK/daylight-mirror; reject BetterDisplay/DisplayLink deps.
 - **2026-07-18:** Implemented host-served Web PWA end-to-end on `feat/web-pwa-client` (WSS bridge, GUI URL/QR, TS client with video/audio/input/fullscreen/PWA, packaging hooks, WIRE/STATUS/ARCHITECTURE updates). Web unit tests pass; host C++ not built on this macOS agent (needs Linux/evdi).
 - **2026-07-18:** Specced host-served Web PWA client design.
 - **2026-07-18:** Added ARCHITECTURE.md; local-first remotes; Claude↔Cursor tooling sync.

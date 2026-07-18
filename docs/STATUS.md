@@ -13,7 +13,7 @@ Living source of truth for "is this designed / planned / shipped?". Design specs
 | Android client (minSdk 21) | **Shipped** |
 | Linux desktop receive client (`client/`) | **Shipped** |
 | Packaging (AppImage + Flatpak host/client, APK script) | **Shipped** |
-| macOS host backend | **Archived** (`macos/`; not in build) |
+| macOS host backend | **Archived** (`macos/`; not in build). CGVirtualDisplay OSS research: `2026-07-18-cgvirtualdisplay-oss-research.md` |
 | Cross-desktop beyond KWin | **Partial** — M1 seam + X11 backend shipped; Sway/GNOME Wayland still open |
 | Web PWA client (host-served) | **Partial** — implemented on `feat/web-pwa-client`; needs Chromium LAN E2E before Shipped |
 
@@ -87,6 +87,7 @@ Living source of truth for "is this designed / planned / shipped?". Design specs
 | `2026-07-13-stylus-design.md` | Shipped |
 | `2026-07-16-hw-encode-design.md` | Shipped |
 | `2026-07-18-web-pwa-client-design.md` | Partial — code on `feat/web-pwa-client`; E2E verify pending |
+| `2026-07-18-cgvirtualdisplay-oss-research.md` | Findings — own thin `macos/` wrapper; DeskPad/VDK/daylight-mirror as cribs; no BetterDisplay/DisplayLink dep |
 
 ## How to keep this current
 
